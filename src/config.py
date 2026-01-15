@@ -14,6 +14,7 @@ DEFAULT_CONFIG = {
     "audio": {
         "enabled": True,
         "mode": "samples",
+        "kit": "classic",
         "sample_rate": 44100,
         "buffer_size": 512,
         "samples": {
@@ -50,7 +51,12 @@ DEFAULT_CONFIG = {
         "enabled": False,
         "device_id": 0,
         "width": 640,
-        "height": 480
+        "height": 480,
+        "brightness": 0,
+        "contrast": 1.0,
+        "manual_corners": None,
+        "bpm_min_distance": 80,
+        "bpm_max_distance": 880
     },
     "ui": {
         "cell_size": 60,

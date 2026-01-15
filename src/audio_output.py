@@ -6,7 +6,96 @@ import numpy as np
 import pygame
 from scipy import signal
 
+from grid import EMPTY, BLACK, WHITE
+
 SAMPLE_RATE = 44100
+
+
+def _normalize(wave: np.ndarray, peak: float = 0.9) -> np.ndarray:
+    max_val = float(np.max(np.abs(wave))) if wave.size else 0.0
+    if max_val <= 1e-8:
+        return wave
+    return wave / max_val * peak
+
+
+def _to_int16(wave: np.ndarray, peak: float = 0.9) -> np.ndarray:
+    normalized = _normalize(wave, peak)
+    return (np.clip(normalized, -1.0, 1.0) * 32767).astype(np.int16)
+
+
+def _mix(*waves: np.ndarray) -> np.ndarray:
+    if not waves:
+        return np.array([], dtype=np.float32)
+    max_len = max(len(w) for w in waves)
+    mix = np.zeros(max_len, dtype=np.float32)
+    for wave in waves:
+        mix[:len(wave)] += wave
+    return mix
+
+
+def _soft_clip(wave: np.ndarray, drive: float = 1.0) -> np.ndarray:
+    return np.tanh(wave * drive)
+
+
+def _noise_burst(duration: float, decay: float, amp: float = 1.0) -> np.ndarray:
+    samples = int(SAMPLE_RATE * duration)
+    t = np.linspace(0, duration, samples, False)
+    noise = np.random.uniform(-1, 1, samples).astype(np.float32)
+    env = np.exp(-t * decay)
+    return noise * env * amp
+
+
+def _sine_sweep(duration: float, f_start: float, f_end: float, decay: float, amp: float = 1.0) -> np.ndarray:
+    samples = int(SAMPLE_RATE * duration)
+    t = np.linspace(0, duration, samples, False)
+    f_start = max(1.0, f_start)
+    f_end = max(1.0, f_end)
+    freqs = np.exp(np.linspace(np.log(f_start), np.log(f_end), samples))
+    phase = 2 * np.pi * np.cumsum(freqs) / SAMPLE_RATE
+    env = np.exp(-t * decay)
+    return np.sin(phase) * env * amp
+
+
+def _square_sweep(duration: float, f_start: float, f_end: float, decay: float, amp: float = 1.0) -> np.ndarray:
+    samples = int(SAMPLE_RATE * duration)
+    t = np.linspace(0, duration, samples, False)
+    f_start = max(1.0, f_start)
+    f_end = max(1.0, f_end)
+    freqs = np.exp(np.linspace(np.log(f_start), np.log(f_end), samples))
+    phase = 2 * np.pi * np.cumsum(freqs) / SAMPLE_RATE
+    env = np.exp(-t * decay)
+    return np.sign(np.sin(phase)) * env * amp
+
+
+def _highpass(wave: np.ndarray, cutoff: float) -> np.ndarray:
+    nyquist = SAMPLE_RATE / 2
+    norm = min(max(cutoff / nyquist, 0.01), 0.99)
+    try:
+        b, a = signal.butter(2, norm, btype='high')
+        return signal.lfilter(b, a, wave).astype(np.float32)
+    except Exception:
+        return wave
+
+
+def _bandpass(wave: np.ndarray, low: float, high: float) -> np.ndarray:
+    nyquist = SAMPLE_RATE / 2
+    low_n = min(max(low / nyquist, 0.01), 0.98)
+    high_n = min(max(high / nyquist, low_n + 0.01), 0.99)
+    try:
+        b, a = signal.butter(2, [low_n, high_n], btype='band')
+        return signal.lfilter(b, a, wave).astype(np.float32)
+    except Exception:
+        return wave
+
+
+def _bitcrush(wave: np.ndarray, bits: int = 6, downsample: int = 4) -> np.ndarray:
+    bits = max(2, bits)
+    step = 2 ** (bits - 1)
+    crushed = np.round(wave * step) / step
+    if downsample > 1:
+        crushed = crushed[::downsample]
+        crushed = np.repeat(crushed, downsample)[:len(wave)]
+    return crushed.astype(np.float32)
 
 
 class SynthFilter:
@@ -186,6 +275,172 @@ def generate_clap(duration=0.15):
     return (wave * 32767 * 0.6 / 4).astype(np.int16)
 
 
+def _kit_classic():
+    return {
+        'kick': generate_kick(),
+        'snare': generate_snare(),
+        'hihat': generate_hihat(),
+        'clap': generate_clap(),
+    }
+
+
+def _kit_real():
+    kick = _mix(
+        _sine_sweep(0.35, 140, 50, decay=7, amp=1.0),
+        _noise_burst(0.04, decay=50, amp=0.18),
+        _sine_sweep(0.02, 900, 200, decay=50, amp=0.35),
+    )
+    kick = _soft_clip(kick, 1.2)
+
+    snare_t = np.linspace(0, 0.25, int(SAMPLE_RATE * 0.25), False)
+    snare_tone = np.sin(2 * np.pi * 180 * snare_t) * np.exp(-snare_t * 12)
+    snare_noise = _noise_burst(0.25, decay=16, amp=0.8)
+    snare_noise = _highpass(snare_noise, 900)
+    snare = _soft_clip(snare_tone * 0.4 + snare_noise, 1.1)
+
+    hihat = _noise_burst(0.12, decay=45, amp=0.6)
+    hihat = _highpass(hihat, 7000)
+
+    clap = np.zeros(int(SAMPLE_RATE * 0.2), dtype=np.float32)
+    for i, amp in enumerate([0.7, 0.5, 0.35, 0.25]):
+        offset = int(i * 0.012 * SAMPLE_RATE)
+        burst = _noise_burst(0.05, decay=35, amp=amp)
+        end = min(len(clap), offset + len(burst))
+        clap[offset:end] += burst[:end - offset]
+    clap = _highpass(clap, 1200)
+
+    return {
+        'kick': _to_int16(kick, 0.9),
+        'snare': _to_int16(snare, 0.85),
+        'hihat': _to_int16(hihat, 0.6),
+        'clap': _to_int16(clap, 0.7),
+    }
+
+
+def _kit_dnb():
+    kick = _mix(
+        _sine_sweep(0.25, 180, 45, decay=10, amp=1.1),
+        _sine_sweep(0.018, 1200, 250, decay=55, amp=0.5),
+        _noise_burst(0.03, decay=60, amp=0.15),
+    )
+    kick = _soft_clip(kick, 1.4)
+
+    snare_t = np.linspace(0, 0.2, int(SAMPLE_RATE * 0.2), False)
+    snare_tone = np.sin(2 * np.pi * 220 * snare_t) * np.exp(-snare_t * 18)
+    snare_noise = _noise_burst(0.2, decay=22, amp=0.9)
+    snare_noise = _bandpass(snare_noise, 1500, 8000)
+    snare = _soft_clip(snare_tone * 0.35 + snare_noise, 1.2)
+
+    hihat = _noise_burst(0.08, decay=55, amp=0.55)
+    hihat = _highpass(hihat, 8500)
+
+    clap = _noise_burst(0.12, decay=28, amp=0.7)
+    clap = _highpass(clap, 1400)
+
+    return {
+        'kick': _to_int16(kick, 0.9),
+        'snare': _to_int16(snare, 0.8),
+        'hihat': _to_int16(hihat, 0.55),
+        'clap': _to_int16(clap, 0.6),
+    }
+
+
+def _kit_ethnic():
+    kick = _mix(
+        _sine_sweep(0.4, 220, 70, decay=5, amp=1.0),
+        _sine_sweep(0.2, 140, 90, decay=6, amp=0.5),
+    )
+    kick = _soft_clip(kick, 1.1)
+
+    snare_t = np.linspace(0, 0.28, int(SAMPLE_RATE * 0.28), False)
+    snare_tone = np.sin(2 * np.pi * 260 * snare_t) * np.exp(-snare_t * 8)
+    snare_noise = _noise_burst(0.28, decay=10, amp=0.4)
+    snare = _soft_clip(snare_tone + snare_noise, 1.1)
+
+    hihat = _noise_burst(0.18, decay=20, amp=0.6)
+    hihat = _bandpass(hihat, 3000, 7000)
+
+    clap_t = np.linspace(0, 0.12, int(SAMPLE_RATE * 0.12), False)
+    clap = np.sin(2 * np.pi * 520 * clap_t) * np.exp(-clap_t * 18)
+
+    return {
+        'kick': _to_int16(kick, 0.9),
+        'snare': _to_int16(snare, 0.8),
+        'hihat': _to_int16(hihat, 0.6),
+        'clap': _to_int16(clap, 0.6),
+    }
+
+
+def _kit_8bit():
+    kick = _square_sweep(0.2, 200, 60, decay=9, amp=1.0)
+    kick = _bitcrush(kick, bits=5, downsample=6)
+
+    snare = _noise_burst(0.16, decay=18, amp=0.9)
+    snare = _bitcrush(snare, bits=4, downsample=5)
+
+    hihat = _noise_burst(0.06, decay=35, amp=0.8)
+    hihat = _highpass(hihat, 9000)
+    hihat = _bitcrush(hihat, bits=3, downsample=6)
+
+    clap = _mix(
+        _square_sweep(0.06, 800, 300, decay=20, amp=0.6),
+        _noise_burst(0.06, decay=30, amp=0.4),
+    )
+    clap = _bitcrush(clap, bits=4, downsample=5)
+
+    return {
+        'kick': _to_int16(kick, 0.8),
+        'snare': _to_int16(snare, 0.7),
+        'hihat': _to_int16(hihat, 0.5),
+        'clap': _to_int16(clap, 0.6),
+    }
+
+
+def _kit_bizarre():
+    kick = _mix(
+        _sine_sweep(0.3, 90, 280, decay=6, amp=0.9),
+        _square_sweep(0.15, 600, 80, decay=12, amp=0.4),
+    )
+    kick = _soft_clip(kick, 1.6)
+
+    snare_len = int(SAMPLE_RATE * 0.24)
+    snare_t = np.linspace(0, 0.24, snare_len, False)
+    chirp = signal.chirp(snare_t, f0=600, f1=80, t1=0.24, method='linear')
+    snare = _mix(chirp * np.exp(-snare_t * 7), _noise_burst(0.24, decay=12, amp=0.6))
+    snare = _soft_clip(snare, 1.4)
+
+    hihat = _mix(
+        _noise_burst(0.12, decay=30, amp=0.6),
+        np.sin(2 * np.pi * 4300 * snare_t[:int(SAMPLE_RATE * 0.12)]) * np.exp(-snare_t[:int(SAMPLE_RATE * 0.12)] * 25) * 0.3,
+    )
+    hihat = _bandpass(hihat, 2500, 9000)
+
+    clap = _mix(
+        _noise_burst(0.1, decay=40, amp=0.6),
+        _sine_sweep(0.1, 900, 120, decay=15, amp=0.4),
+    )
+    clap = _soft_clip(clap, 1.3)
+
+    return {
+        'kick': _to_int16(kick, 0.85),
+        'snare': _to_int16(snare, 0.8),
+        'hihat': _to_int16(hihat, 0.55),
+        'clap': _to_int16(clap, 0.65),
+    }
+
+
+KIT_LIBRARY = {
+    'classic': _kit_classic,
+    'real': _kit_real,
+    'dnb': _kit_dnb,
+    'ethnic': _kit_ethnic,
+    '8bit': _kit_8bit,
+    'bizarre': _kit_bizarre,
+}
+
+KIT_ORDER = ['classic', 'real', 'dnb', 'ethnic', '8bit', 'bizarre']
+
+
 class AudioOutput:
     """Audio playback with classic synth filter."""
     
@@ -209,9 +464,11 @@ class AudioOutput:
         if config and 'audio' in config:
             sample_rate = config['audio'].get('sample_rate', SAMPLE_RATE)
             buffer_size = config['audio'].get('buffer_size', 512)
+            kit_name = config['audio'].get('kit', 'classic')
         else:
             sample_rate = SAMPLE_RATE
             buffer_size = 512
+            kit_name = 'classic'
         
         # Create filter
         self.synth_filter = SynthFilter(
@@ -224,6 +481,13 @@ class AudioOutput:
         # Init pygame mixer
         pygame.mixer.init(frequency=sample_rate, size=-16, channels=2, buffer=buffer_size)
         
+        # Sound kits
+        kit_name = kit_name.lower()
+        if kit_name not in KIT_LIBRARY:
+            kit_name = 'classic'
+        self.kit_name = kit_name
+        self.available_kits = KIT_ORDER[:]
+
         # Generate sounds
         self.raw_samples = {}
         self._filter_value = 0.0  # Start at center (neutral/no filter)
@@ -231,6 +495,7 @@ class AudioOutput:
         self._generate_sounds()
         
         print("✓ Audio samples generated")
+        print(f"✓ Kit: {self.kit_name}")
         if self.filter_enabled:
             print(f"✓ Synth Filter: {min_freq}Hz - {max_freq}Hz, Resonance: {resonance}")
     
@@ -251,15 +516,33 @@ class AudioOutput:
             # print(f"Cutoff: {cutoff:.0f} Hz")
     
     def _generate_sounds(self):
-        self.raw_samples = {
-            'kick': generate_kick(),
-            'snare': generate_snare(),
-            'hihat': generate_hihat(),
-            'clap': generate_clap(),
-        }
+        kit_fn = KIT_LIBRARY.get(self.kit_name, _kit_classic)
+        self.raw_samples = kit_fn()
         for name, data in self.raw_samples.items():
             stereo = np.column_stack([data, data]).astype(np.int16)
             self.sounds[name] = pygame.sndarray.make_sound(stereo)
+        if self.filter_enabled and abs(self._filter_value) >= 0.05:
+            self._apply_filter_to_sounds()
+
+    def set_kit(self, name: str) -> bool:
+        if not name:
+            return False
+        name = name.lower()
+        if name not in KIT_LIBRARY:
+            return False
+        if name == self.kit_name:
+            return True
+        self.kit_name = name
+        self._generate_sounds()
+        return True
+
+    def cycle_kit(self, direction: int = 1) -> str:
+        if not self.available_kits:
+            return self.kit_name
+        idx = self.available_kits.index(self.kit_name)
+        idx = (idx + direction) % len(self.available_kits)
+        self.set_kit(self.available_kits[idx])
+        return self.kit_name
     
     def _apply_filter_to_sounds(self):
         if not self.filter_enabled:
@@ -278,9 +561,14 @@ class AudioOutput:
             sound.play()
     
     def trigger(self, instrument: str, cell_state: int):
-        if cell_state == 0:
+        if cell_state == EMPTY:
             return
-        velocity = 127 if cell_state == 1 else 80
+        if cell_state == BLACK:
+            velocity = 80
+        elif cell_state == WHITE:
+            velocity = 127
+        else:
+            return
         self.play_sound(instrument, velocity)
     
     def close(self):

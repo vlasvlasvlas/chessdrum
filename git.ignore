@@ -1,0 +1,17 @@
+.DS_Store
+DS_store
+
+# Virtual environment
+venv/
+/venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Temporary docs
+tmp_docs/

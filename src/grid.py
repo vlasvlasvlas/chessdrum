@@ -1,13 +1,13 @@
 """
-Grid model for the 8x8 Reversi board.
+Grid model for the 8x8 chessboard.
 Maps to a 4-instrument x 16-step drum sequencer.
 """
 import numpy as np
 
 # Cell states
 EMPTY = 0
-WHITE = 1  # Strong accent (velocity 127)
-BLACK = 2  # Weak accent (velocity 80)
+BLACK = 1  # Standard hit (velocity 80)
+WHITE = 2  # Optional accent (velocity 127)
 
 # Instrument mapping (row indices for each instrument)
 # Using upper half (rows 0-3) as first 8 steps
@@ -16,7 +16,7 @@ INSTRUMENTS = ['hihat', 'clap', 'snare', 'kick']
 
 
 class Grid:
-    """8x8 grid representing the Reversi/chess board."""
+    """8x8 grid representing the chess board."""
     
     def __init__(self):
         # 8x8 numpy array, all cells start empty
@@ -24,12 +24,12 @@ class Grid:
     
     def toggle(self, row: int, col: int) -> int:
         """
-        Toggle cell state: EMPTY -> WHITE -> BLACK -> EMPTY
+        Toggle cell state: EMPTY -> BLACK -> EMPTY.
         Returns the new state.
         """
         if 0 <= row < 8 and 0 <= col < 8:
             current = self.cells[row, col]
-            new_state = (current + 1) % 3
+            new_state = BLACK if current == EMPTY else EMPTY
             self.cells[row, col] = new_state
             return new_state
         return EMPTY
@@ -64,7 +64,7 @@ class Grid:
         - Row 7 (cols 0-7) = Kick steps 9-16
         
         Returns:
-            List of 4 lists (one per instrument), each with 16 values (0, 1, or 2)
+            List of 4 lists (one per instrument), each with 16 values (0 or 1; 2 if set manually)
         """
         pattern = []
         for i in range(4):  # 4 instruments

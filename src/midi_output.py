@@ -1,9 +1,11 @@
 """
-MIDI output module for Reversi Drum.
+MIDI output module for ChessDrum.
 Sends drum notes to a virtual MIDI port.
 """
 import mido
 from mido import Message
+
+from grid import EMPTY, BLACK, WHITE
 
 # General MIDI Drum Map (Channel 10)
 DRUM_NOTES = {
@@ -21,7 +23,7 @@ VELOCITY_BLACK = 80   # Soft accent
 class MidiOutput:
     """Handles MIDI output for the drum sequencer."""
     
-    def __init__(self, port_name: str = "Reversi Drum"):
+    def __init__(self, port_name: str = "ChessDrum"):
         self.port_name = port_name
         self.port = None
         self._open_port()
@@ -70,12 +72,17 @@ class MidiOutput:
         
         Args:
             instrument: Instrument name
-            cell_state: 0=empty (no sound), 1=white (loud), 2=black (soft)
+            cell_state: 0=empty (no sound), 1=black (soft), 2=white (loud)
         """
-        if cell_state == 0:
+        if cell_state == EMPTY:
             return
         
-        velocity = VELOCITY_WHITE if cell_state == 1 else VELOCITY_BLACK
+        if cell_state == BLACK:
+            velocity = VELOCITY_BLACK
+        elif cell_state == WHITE:
+            velocity = VELOCITY_WHITE
+        else:
+            return
         self.play_note(instrument, velocity)
     
     def close(self):

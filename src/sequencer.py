@@ -1,5 +1,5 @@
 """
-Sequencer engine for Reversi Drum.
+Sequencer engine for ChessDrum.
 Handles timing and playback of the drum pattern.
 """
 import time

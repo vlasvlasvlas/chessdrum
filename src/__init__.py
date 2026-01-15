@@ -1,1 +1,1 @@
-# Reversi Drum Machine
+# ChessDrum

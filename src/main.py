@@ -11,13 +11,13 @@ Usage:
     python3 src/main.py --midi       # MIDI output mode
 
 Controls:
-    - Click on cells to place/toggle pieces (white → black → empty)
+    - Click on cells to place/toggle pieces (empty → black → empty)
     - Space: Play/Stop
     - C: Clear all pieces
     - ESC: Quit
     - Arrows: Adjust filter
     - 0: Reset filter (or use camera rotation)
-    - Show 2 hands: Control BPM by distance
+    - Two open hands: Control BPM by distance
 """
 import sys
 import os
@@ -52,15 +52,32 @@ def main():
     print(f"  {project_name} 🎵")
     print("=" * 50)
     print()
+    
+    # Determine camera usage first
+    use_camera = args.camera or config.get('camera', 'enabled', default=False)
+    
     print("Controls:")
-    print("  • Click cells to toggle pieces (white → black → empty)")
-    print("  • White = loud (velocity 127)")
-    print("  • Black = soft (velocity 80)")
+    print("  • Click cells to toggle pieces (empty → black → empty)")
+    print("  • Black = hit (velocity 80)")
     print("  • Space = Play/Stop")
     print("  • C = Clear")
     print("  • ESC = Quit")
     print("  • ←/→ = Adjust filter")
     print("  • 0 = Reset filter")
+    print("  • [ / ] = Switch sound kit (audio only)")
+    if use_camera:
+        print()
+        print("Camera Controls:")
+        print("  • Q/A = Brightness ±5")
+        print("  • W/S = Contrast ±0.1")
+        print("  • E = Reset brightness/contrast")
+        print("  • 1-9 = Sensitivity (1=strict, 5=balanced, 9=sensitive)")
+        print("  • T/G = Dark threshold ±5 (higher=stricter)")
+        print("  • R = Recalibrate board (use when lighting changes)")
+        print("  • D = Toggle debug mode (shows warped board)")
+        print("  • M = Manual board mode (click 4 corners)")
+        print("  • Backspace = Clear manual board")
+        print("  • Two open hands = BPM (20-220)")
     print()
     print("Mapping:")
     print("  • Upper half (rows 1-4) = Steps 1-8")
@@ -96,9 +113,8 @@ def main():
     sequencer = Sequencer(grid, output)
     sequencer.bpm = config.get('sequencer', 'default_bpm', default=120)
     
-    # Initialize camera if requested
+    # Initialize camera if requested (use_camera already defined earlier)
     camera_controller = None
-    use_camera = args.camera or config.get('camera', 'enabled', default=False)
     
     if use_camera:
         try:
@@ -123,7 +139,7 @@ def main():
             
             def on_pieces_change(pieces):
                 # Update grid with detected pieces
-                # pieces is 8x8 numpy array: 0=empty, 1=white, 2=black
+                # pieces is 8x8 numpy array: 0=empty, 1=black, 2=white
                 if pieces is not None:
                     for row in range(8):
                         for col in range(8):
@@ -134,7 +150,7 @@ def main():
             camera_controller.on_pieces_change = on_pieces_change
             
             if camera_controller.start():
-                print("Camera: Enabled (show 2 hands for BPM)")
+                print("Camera: Enabled (two open hands for BPM)")
             else:
                 camera_controller = None
                 print("Camera: Failed to start")
