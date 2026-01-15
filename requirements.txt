@@ -1,0 +1,17 @@
+# Reversi Drum Machine - Dependencies
+
+# GUI and audio
+pygame>=2.5.0
+
+# MIDI output
+mido>=1.3.0
+python-rtmidi>=1.5.0
+
+# Matrices for grid
+numpy>=1.24.0
+
+# Audio filtering
+scipy>=1.10.0
+
+# Phase 2: Camera detection (install later)
+# opencv-python>=4.8.0
