@@ -48,6 +48,14 @@ class Grid:
     def clear(self):
         """Clear all cells."""
         self.cells.fill(EMPTY)
+
+    def set_matrix(self, matrix) -> bool:
+        """Replace the grid with a new 8x8 matrix."""
+        arr = np.array(matrix, dtype=np.int8)
+        if arr.shape != (8, 8):
+            return False
+        self.cells = arr
+        return True
     
     def get_pattern(self) -> list:
         """

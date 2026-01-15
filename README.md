@@ -2,14 +2,15 @@
 
 A drum sequencer where an 8x8 chessboard controls a 4-instrument, 16-step drum pattern. Place pieces on the board to create beats!
 
-![ChessDrum camera mode](docs/images/chessdrum-camera.png)
-*Camera mode with manual board corners, debug warped view, and step overlay.*
+![ChessDrum Screenshot](docs/images/chessdrum-screenshot.png)
+*Camera mode with board detection, overlay, and real-time controls.*
 
 ## ✨ Highlights
 
 - Manual board calibration (4 clicks) with debug warped view
 - Two open hands to control BPM, single hand does not change tempo
 - Six built-in sound kits (classic, real, dnb, ethnic, 8bit, bizarre)
+- Sound + pattern libraries (JSON) with in-app browser (press L)
 - Real-time detection tuning (sensitivity/threshold/brightness/contrast)
 - Audio synth filter + MIDI output option
 
@@ -57,9 +58,15 @@ python3 src/main.py
 ### Sound & Filter Controls
 | Input | Action |
 |-------|--------|
-| **← / →** | Adjust filter: left=dark, right=bright |
-| **0** | Reset filter to center |
-| **[ / ]** | Previous/next sound kit |
+| **← / →** | Previous/next sound kit |
+| **↑ / ↓** | Master volume |
+| **0** | Reset filter (cutoff/resonance) |
+| **L** | Library browser (sound + pattern presets) |
+| **H** | Toggle hand BPM detection |
+
+Filter is controlled by the on-screen Cutoff and Resonance sliders (below BPM).
+Drag the sliders with the mouse to shape the tone.
+Use **H** or the **Hands BPM** button to disable hand BPM while moving pieces.
 
 ### Camera Controls (when --camera mode)
 | Input | Action |
@@ -74,26 +81,19 @@ python3 src/main.py
 | **Right click** | **Undo last corner** (manual mode) |
 | **1-9** | **Sensitivity** (1=strict, 5=balanced, 9=sensitive) |
 | **T / G** | **Dark threshold** +5 / -5 (adjust piece detection) |
-| **2 open hands** | **BPM control** (20-220, only when both hands are open) |
+| **2 open hands** | **BPM control** (20-220, only when both hands are open and held briefly) |
+| **H** | **Hand BPM toggle** (disable hand detection when placing pieces) |
 
 ## 🔊 Synth Filter
 
-The rotation slider controls a classic lowpass/highpass filter:
+Use the two sliders under BPM:
 
-```
-  ◀── DARK ────── CENTER ────── BRIGHT ──▶
-      (80Hz)      (neutral)      (12kHz)
-        LP          OFF            HP
-```
-
-- **Left**: Lowpass filter, muffled/dark sound
-- **Center**: No filter, natural sound
-- **Right**: Highpass filter, bright/thin sound
-- **Resonance**: Adds "squelchy" peak at cutoff frequency
+- **Cutoff**: Lowpass cutoff frequency (lower = darker, higher = brighter)
+- **Resonance**: Boosts the cutoff area for a sharper, more "squelchy" sound
 
 ## 🧰 Sound Kits
 
-Switch kits with **[ / ]** (audio mode only). Available kits:
+Switch kits with **← / →** (audio mode only). Available kits:
 
 - **classic**: original synthetic kit (balanced).
 - **real**: punchy acoustic-style kit.
@@ -101,8 +101,26 @@ Switch kits with **[ / ]** (audio mode only). Available kits:
 - **ethnic**: softer, percussive, more 'organic'.
 - **8bit**: chiptune/bitcrushed kit.
 - **bizarre**: experimental, noisy, and weird.
+- **hybrid_*:** built-in drum kits with HH/CP converted to notes.
 
-All kits are generated in code (no external samples). If you want real WAV packs, drop them in and we can wire a sample loader.
+All kits are generated in code (no external samples). You can also add your own WAV or synth kits in `libraries/sound_libraries.json`.
+
+## 📚 Pattern Libraries
+
+Pattern presets live in `libraries/pattern_libraries.json` and can be applied from the in-app library browser (press **L**).
+Each library can include up to 4 patterns and can optionally pick a sound kit.
+
+Included presets: Chroma C Pulse, D Shuffle, E Steps, F Bounce, G Drive (drums + notes).
+See [docs/LIBRARIES.md](docs/LIBRARIES.md) for examples and templates.
+
+### Library Browser
+
+Press **L** to open the browser:
+
+- **Tab** switches between Sound and Pattern lists
+- **Up/Down** selects a library
+- **Left/Right** switches patterns (pattern mode)
+- **Enter** applies the selection
 
 ## ⚙️ Configuration
 
@@ -114,7 +132,15 @@ All settings in `config.json`:
     "enabled": true,
     "kit": "classic",
     "sample_rate": 44100,
-    "buffer_size": 512
+    "buffer_size": 512,
+    "volume": 1.0,
+    "channels": 32,
+    "instrument_gain": {
+      "kick": 1.0,
+      "snare": 1.2,
+      "hihat": 1.0,
+      "clap": 1.0
+    }
   },
   "camera": {
     "enabled": false,
@@ -122,6 +148,7 @@ All settings in `config.json`:
     "brightness": 0,
     "contrast": 1.0,
     "manual_corners": null,
+    "hand_bpm_enabled": true,
     "bpm_min_distance": 80,
     "bpm_max_distance": 880,
     "detection_sensitivity": 0.5,
@@ -139,6 +166,10 @@ All settings in `config.json`:
   },
   "sequencer": {
     "default_bpm": 120
+  },
+  "libraries": {
+    "sound_file": "libraries/sound_libraries.json",
+    "pattern_file": "libraries/pattern_libraries.json"
   }
 }
 ```
@@ -148,17 +179,23 @@ All settings in `config.json`:
 | Setting | Description |
 |---------|-------------|
 | `audio.enabled` | Use built-in synth sounds |
-| `audio.kit` | Sound kit: `classic`, `real`, `dnb`, `ethnic`, `8bit`, `bizarre` |
+| `audio.kit` | Sound kit id from `libraries/sound_libraries.json` (e.g., `classic`, `real`, `hybrid_c_major`) |
 | `audio.buffer_size` | Audio buffer size (latency vs stability) |
+| `audio.volume` | Master volume (0.0 - 1.0) |
+| `audio.channels` | Mixer channels (overlap headroom for longer samples) |
+| `audio.instrument_gain` | Per-instrument gain map (`kick`, `snare`, `hihat`, `clap`) |
 | `midi.enabled` | Output MIDI to DAW |
 | `camera.brightness` | Image brightness offset |
 | `camera.contrast` | Image contrast multiplier |
 | `camera.manual_corners` | Manual board corners (normalized TL,TR,BR,BL) |
+| `camera.hand_bpm_enabled` | Start with hand BPM detection enabled |
 | `camera.bpm_min_distance` | Hand distance → minimum BPM |
 | `camera.bpm_max_distance` | Hand distance → maximum BPM |
-| `filter.min_freq` | Lowest cutoff (Hz) at left position |
-| `filter.max_freq` | Highest cutoff (Hz) at right position |
-| `filter.resonance` | Q factor (1=flat, 3+=resonant) |
+| `filter.min_freq` | Lowest cutoff (Hz) for the Cutoff slider |
+| `filter.max_freq` | Highest cutoff (Hz) for the Cutoff slider |
+| `filter.resonance` | Default resonance value |
+| `libraries.sound_file` | Sound library JSON file |
+| `libraries.pattern_file` | Pattern library JSON file |
 
 ## 🎹 MIDI Mode
 
@@ -295,8 +332,8 @@ Tool shortcuts:
 - **Manual corners**: 4-point override stored as normalized coordinates (TL,TR,BR,BL).
 - **Piece detection**: per-cell center sampling with dark-pixel ratio + baseline deviation.
 - **Temporal filter**: 5/7 frame consensus to reduce flicker.
-- **BPM control**: MediaPipe hands, only when **two open hands** are detected.
-- **Audio engine**: pygame mixer + SciPy filter; kits are generated in code.
+- **BPM control**: MediaPipe hands, only when **two open hands** are detected for a short moment.
+- **Audio engine**: pygame mixer + SciPy filter; kits from JSON library metadata + generators.
 
 ## 📁 Project Structure
 
@@ -304,7 +341,10 @@ Tool shortcuts:
 chessdrum/
 ├── config.json          # All settings
 ├── requirements.txt     # Dependencies
-├── docs/images/         # README screenshots
+├── docs/
+│   ├── images/          # README screenshots
+│   └── LIBRARIES.md     # How to create new libraries
+├── libraries/           # Sound + pattern library JSON files
 ├── src/
 │   ├── main.py          # Entry point
 │   ├── config.py        # Config loader

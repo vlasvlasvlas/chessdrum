@@ -1,0 +1,199 @@
+{
+  "libraries": [
+    {
+      "id": "chroma_c_pulse",
+      "name": "Chroma C Pulse",
+      "description": "Straight pulse with C/E notes over classic drums.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "kit": "hybrid_c_major",
+      "patterns": [
+        {
+          "name": "Pulse 1",
+          "description": "Even notes with a steady kick/snare backbeat.",
+          "grid": [
+            [1,0,1,0,1,0,1,0],
+            [0,1,0,1,0,1,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,1,0,0,0],
+            [1,0,1,0,1,0,1,0],
+            [0,1,0,1,0,1,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,1,0,0,0]
+          ]
+        },
+        {
+          "name": "Pulse 2",
+          "description": "Syncopated kicks with alternating notes.",
+          "grid": [
+            [1,0,1,0,1,0,1,0],
+            [0,1,0,0,0,1,0,0],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,1,0,0,1,0],
+            [1,0,1,0,1,0,1,0],
+            [0,1,0,0,0,1,0,0],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,1,0,0,1,0]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chroma_d_shuffle",
+      "name": "Chroma D Shuffle",
+      "description": "Laid-back shuffle with D/F note accents.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "kit": "hybrid_d_minor",
+      "patterns": [
+        {
+          "name": "Shuffle 1",
+          "description": "Sparse kick with rolling note accents.",
+          "grid": [
+            [1,0,0,1,0,0,1,0],
+            [0,0,1,0,0,0,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,0,1,0,0],
+            [0,1,0,0,1,0,0,1],
+            [0,0,1,0,0,1,0,0],
+            [0,0,0,0,1,0,0,0],
+            [0,0,1,0,0,0,0,1]
+          ]
+        },
+        {
+          "name": "Shuffle 2",
+          "description": "Kicks on 1/8/12/15 with offbeat notes.",
+          "grid": [
+            [0,1,0,0,1,0,1,0],
+            [0,0,0,1,0,0,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,0,0,0,1],
+            [0,1,0,1,0,0,1,0],
+            [0,0,0,1,0,0,0,1],
+            [0,0,0,0,1,0,0,0],
+            [0,0,0,1,0,0,1,0]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chroma_e_steps",
+      "name": "Chroma E Steps",
+      "description": "Bright step patterns with E/G notes.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "kit": "hybrid_e_minor",
+      "patterns": [
+        {
+          "name": "Steps 1",
+          "description": "All-note pulse with minimal drums.",
+          "grid": [
+            [1,1,1,1,1,1,1,1],
+            [0,1,0,1,0,1,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,0,0,0,0],
+            [1,1,1,1,1,1,1,1],
+            [0,1,0,1,0,1,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,0,0,0,0]
+          ]
+        },
+        {
+          "name": "Call/Response",
+          "description": "Notes alternate in 4-step phrases.",
+          "grid": [
+            [1,1,1,1,0,0,0,0],
+            [0,0,0,0,1,1,1,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,0,0,1,0],
+            [1,1,1,1,0,0,0,0],
+            [0,0,0,0,1,1,1,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,0,0,1,0]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chroma_f_bounce",
+      "name": "Chroma F Bounce",
+      "description": "Bouncy rhythms with F/A notes.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "kit": "hybrid_f_major",
+      "patterns": [
+        {
+          "name": "Bounce 1",
+          "description": "Diagonal note accents with roomy kicks.",
+          "grid": [
+            [1,0,0,1,0,0,1,0],
+            [0,1,0,0,1,0,0,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,1,0,0,0,0,0],
+            [0,1,0,0,1,0,0,1],
+            [0,0,1,0,0,1,0,0],
+            [0,0,0,0,1,0,0,0],
+            [1,0,1,0,0,0,0,0]
+          ]
+        },
+        {
+          "name": "Bounce 2",
+          "description": "Tighter note grid with extra kicks.",
+          "grid": [
+            [1,1,0,0,1,1,0,0],
+            [0,0,1,1,0,0,1,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,1,0,1,0,0],
+            [1,1,0,0,1,1,0,0],
+            [0,0,1,1,0,0,1,1],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,1,0,1,0,0]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chroma_g_drive",
+      "name": "Chroma G Drive",
+      "description": "Driving grooves with G/B notes.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "kit": "hybrid_g_major",
+      "patterns": [
+        {
+          "name": "Drive 1",
+          "description": "Offbeat notes with steady kicks.",
+          "grid": [
+            [0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,1,0],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,1,0,0,0],
+            [0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,1,0],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,1,0,0,1,0]
+          ]
+        },
+        {
+          "name": "Drive 2",
+          "description": "Rolling kicks with alternating notes.",
+          "grid": [
+            [1,0,1,0,1,0,1,0],
+            [0,1,0,0,0,1,0,0],
+            [0,0,0,0,1,0,0,0],
+            [1,0,0,0,1,0,1,0],
+            [1,0,1,0,1,0,1,0],
+            [0,1,0,0,0,1,0,0],
+            [0,0,0,0,1,0,0,0],
+            [0,0,1,0,1,0,0,1]
+          ]
+        }
+      ]
+    }
+  ]
+}

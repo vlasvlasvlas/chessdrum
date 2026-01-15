@@ -7,7 +7,15 @@
         "enabled": true,
         "kit": "classic",
         "sample_rate": 44100,
-        "buffer_size": 512
+        "buffer_size": 512,
+        "volume": 1.0,
+        "channels": 32,
+        "instrument_gain": {
+            "kick": 1.0,
+            "snare": 1.2,
+            "hihat": 1.0,
+            "clap": 1.0
+        }
     },
     "midi": {
         "enabled": false,
@@ -25,7 +33,7 @@
         "max_freq": 12000,
         "resonance": 3.0,
         "order": 4,
-        "_comment": "Synth filter: rotation left=min_freq (dark), right=max_freq (bright)"
+        "_comment": "Synth filter: Cutoff slider uses min_freq..max_freq, resonance sets default Q"
     },
     "sequencer": {
         "default_bpm": 120,
@@ -39,6 +47,7 @@
         "show_feed": true,
         "board_detection": true,
         "hand_detection": true,
+        "hand_bpm_enabled": true,
         "debug_mode": false,
         "brightness": 0,
         "contrast": 1.0,
@@ -47,9 +56,13 @@
         "dark_threshold": 50,
         "bpm_min_distance": 80,
         "bpm_max_distance": 880,
-        "_comment": "brightness: -100..100, contrast: 0.5..3.0, manual_corners: normalized TL,TR,BR,BL. bpm_min_distance/max_distance: pinch distance in pixels. detection_sensitivity: 0.0-1.0 (higher=more sensitive). dark_threshold: 20-100 (lower=detect lighter pieces). Adjust with keys 1-9 and T/G"
+        "_comment": "brightness: -100..100, contrast: 0.5..3.0, manual_corners: normalized TL,TR,BR,BL. hand_bpm_enabled: toggle hand BPM detection. bpm_min_distance/max_distance: pinch distance in pixels. detection_sensitivity: 0.0-1.0 (higher=more sensitive). dark_threshold: 20-100 (lower=detect lighter pieces). Adjust with keys 1-9 and T/G"
     },
     "ui": {
         "window_title": "ChessDrum 🎵"
+    },
+    "libraries": {
+        "sound_file": "libraries/sound_libraries.json",
+        "pattern_file": "libraries/pattern_libraries.json"
     }
 }

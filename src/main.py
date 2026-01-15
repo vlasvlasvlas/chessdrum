@@ -15,8 +15,9 @@ Controls:
     - Space: Play/Stop
     - C: Clear all pieces
     - ESC: Quit
-    - Arrows: Adjust filter
-    - 0: Reset filter (or use camera rotation)
+    - Left/Right: Switch sound kit
+    - Up/Down: Master volume
+    - 0: Reset filter (cutoff/resonance)
     - Two open hands: Control BPM by distance
 """
 import sys
@@ -62,9 +63,12 @@ def main():
     print("  • Space = Play/Stop")
     print("  • C = Clear")
     print("  • ESC = Quit")
-    print("  • ←/→ = Adjust filter")
-    print("  • 0 = Reset filter")
-    print("  • [ / ] = Switch sound kit (audio only)")
+    print("  • ←/→ = Switch sound kit (audio only)")
+    print("  • ↑/↓ = Master volume (audio only)")
+    print("  • 0 = Reset filter (cutoff/resonance)")
+    print("  • Cutoff/Resonance sliders are on-screen below BPM")
+    print("  • L = Library browser (sound + pattern presets)")
+    print("  • H = Toggle hand BPM detection")
     if use_camera:
         print()
         print("Camera Controls:")
@@ -78,6 +82,7 @@ def main():
         print("  • M = Manual board mode (click 4 corners)")
         print("  • Backspace = Clear manual board")
         print("  • Two open hands = BPM (20-220)")
+        print("  • H = Toggle hand BPM detection")
     print()
     print("Mapping:")
     print("  • Upper half (rows 1-4) = Steps 1-8")
@@ -101,7 +106,8 @@ def main():
         # Pass config for filter settings
         filter_config = {
             'filter': config.filter,
-            'audio': config.audio
+            'audio': config.audio,
+            'libraries': config.libraries
         }
         if args.no_filter:
             filter_config['filter']['enabled'] = False
@@ -133,10 +139,6 @@ def main():
             def on_bpm_change(bpm):
                 sequencer.bpm = bpm
             
-            def on_rotation_change(rotation):
-                if audio_ref:
-                    audio_ref.filter_value = rotation
-            
             def on_pieces_change(pieces):
                 # Update grid with detected pieces
                 # pieces is 8x8 numpy array: 0=empty, 1=black, 2=white
@@ -146,7 +148,6 @@ def main():
                             grid.set_cell(row, col, int(pieces[row, col]))
             
             camera_controller.on_bpm_change = on_bpm_change
-            camera_controller.on_rotation_change = on_rotation_change
             camera_controller.on_pieces_change = on_pieces_change
             
             if camera_controller.start():

@@ -17,6 +17,14 @@ DEFAULT_CONFIG = {
         "kit": "classic",
         "sample_rate": 44100,
         "buffer_size": 512,
+        "volume": 1.0,
+        "channels": 32,
+        "instrument_gain": {
+            "kick": 1.0,
+            "snare": 1.2,
+            "hihat": 1.0,
+            "clap": 1.0
+        },
         "samples": {
             "kick": None,
             "snare": None,
@@ -55,6 +63,7 @@ DEFAULT_CONFIG = {
         "brightness": 0,
         "contrast": 1.0,
         "manual_corners": None,
+        "hand_bpm_enabled": True,
         "bpm_min_distance": 80,
         "bpm_max_distance": 880
     },
@@ -62,6 +71,10 @@ DEFAULT_CONFIG = {
         "cell_size": 60,
         "window_title": "ChessDrum 🎵",
         "theme": "dark"
+    },
+    "libraries": {
+        "sound_file": "libraries/sound_libraries.json",
+        "pattern_file": "libraries/pattern_libraries.json"
     }
 }
 
@@ -175,6 +188,10 @@ class Config:
     @property
     def ui(self) -> Dict:
         return self._config.get('ui', {})
+
+    @property
+    def libraries(self) -> Dict:
+        return self._config.get('libraries', {})
 
 
 # Global config instance

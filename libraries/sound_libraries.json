@@ -1,0 +1,200 @@
+{
+  "libraries": [
+    {
+      "id": "classic",
+      "name": "Classic",
+      "description": "Balanced synthetic drum kit.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "builtin"
+    },
+    {
+      "id": "real",
+      "name": "Real",
+      "description": "Punchy acoustic-style kit.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "builtin"
+    },
+    {
+      "id": "dnb",
+      "name": "DnB",
+      "description": "Tight, fast drum-and-bass kit.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "builtin"
+    },
+    {
+      "id": "ethnic",
+      "name": "Ethnic",
+      "description": "Softer, more organic percussion.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "builtin"
+    },
+    {
+      "id": "8bit",
+      "name": "8bit",
+      "description": "Chiptune / bitcrushed kit.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "builtin"
+    },
+    {
+      "id": "bizarre",
+      "name": "Bizarre",
+      "description": "Experimental, noisy, and weird.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "builtin"
+    },
+    {
+      "id": "hybrid_c_major",
+      "name": "Hybrid C Major",
+      "description": "Classic drums + C4/E4 notes on HH/CP.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "hybrid",
+      "base_kit": "classic",
+      "notes": {
+        "hihat": "C4",
+        "clap": "E4"
+      },
+      "synth": {
+        "waveform": "sine",
+        "duration": 0.35,
+        "decay": 6.0,
+        "attack": 0.01
+      }
+    },
+    {
+      "id": "hybrid_d_minor",
+      "name": "Hybrid D Minor",
+      "description": "Classic drums + D4/F4 notes on HH/CP.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "hybrid",
+      "base_kit": "classic",
+      "notes": {
+        "hihat": "D4",
+        "clap": "F4"
+      },
+      "synth": {
+        "waveform": "sine",
+        "duration": 0.35,
+        "decay": 6.0,
+        "attack": 0.01
+      }
+    },
+    {
+      "id": "hybrid_e_minor",
+      "name": "Hybrid E Minor",
+      "description": "Classic drums + E4/G4 notes on HH/CP.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "hybrid",
+      "base_kit": "classic",
+      "notes": {
+        "hihat": "E4",
+        "clap": "G4"
+      },
+      "synth": {
+        "waveform": "sine",
+        "duration": 0.35,
+        "decay": 6.0,
+        "attack": 0.01
+      }
+    },
+    {
+      "id": "hybrid_f_major",
+      "name": "Hybrid F Major",
+      "description": "Real drums + F4/A4 notes on HH/CP.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "hybrid",
+      "base_kit": "real",
+      "notes": {
+        "hihat": "F4",
+        "clap": "A4"
+      },
+      "synth": {
+        "waveform": "sine",
+        "duration": 0.35,
+        "decay": 6.0,
+        "attack": 0.01
+      }
+    },
+    {
+      "id": "hybrid_g_major",
+      "name": "Hybrid G Major",
+      "description": "8bit drums + G4/B4 notes on HH/CP.",
+      "author": "ChessDrum",
+      "date": "2025-02-01",
+      "active": true,
+      "type": "hybrid",
+      "base_kit": "8bit",
+      "notes": {
+        "hihat": "G4",
+        "clap": "B4"
+      },
+      "synth": {
+        "waveform": "square",
+        "duration": 0.32,
+        "decay": 7.0,
+        "attack": 0.01
+      }
+    },
+    {
+      "id": "custom_samples",
+      "name": "Custom Samples",
+      "description": "Template for your own WAV files.",
+      "author": "You",
+      "date": "2025-02-01",
+      "active": false,
+      "type": "samples",
+      "samples": {
+        "kick": "samples/kick.wav",
+        "snare": "samples/snare.wav",
+        "hihat": "samples/hihat.wav",
+        "clap": "samples/clap.wav"
+      },
+      "gain": {
+        "kick": 1.0,
+        "snare": 1.2,
+        "hihat": 1.0,
+        "clap": 1.0
+      }
+    },
+    {
+      "id": "custom_synth",
+      "name": "Custom Synth",
+      "description": "Template for a pure synth-note kit.",
+      "author": "You",
+      "date": "2025-02-01",
+      "active": false,
+      "type": "synth",
+      "notes": {
+        "kick": "C3",
+        "snare": "G3",
+        "hihat": "C4",
+        "clap": "E4"
+      },
+      "synth": {
+        "waveform": "triangle",
+        "duration": 0.4,
+        "decay": 5.0,
+        "attack": 0.02
+      }
+    }
+  ]
+}

@@ -15,13 +15,6 @@ import time
 from grid import BLACK
 
 
-def _put_text_right(frame, text, y, color, scale=0.7, thickness=2, margin=10):
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    (text_w, _), _ = cv2.getTextSize(text, font, scale, thickness)
-    x = max(margin, frame.shape[1] - text_w - margin)
-    cv2.putText(frame, text, (x, y), font, scale, color, thickness)
-
-
 class HandDetector:
     """
     Detects hands using MediaPipe.
@@ -68,6 +61,22 @@ class HandDetector:
         # State
         self.last_bpm: Optional[int] = None
         self.hands_detected = False
+        self.bpm_active = False
+        self._active_streak = 0
+        self._inactive_streak = 0
+        self._active_required_frames = 5
+        self._release_required_frames = 8
+        self.last_distance: Optional[float] = None
+        self.status = "idle"
+
+    def reset_state(self):
+        self.last_bpm = None
+        self.hands_detected = False
+        self.bpm_active = False
+        self._active_streak = 0
+        self._inactive_streak = 0
+        self.last_distance = None
+        self.status = "idle"
 
     def _hand_open(self, landmarks) -> bool:
         wrist = np.array([landmarks[0].x, landmarks[0].y, landmarks[0].z], dtype=np.float32)
@@ -104,43 +113,72 @@ class HandDetector:
         bpm = None
         self.hands_detected = False
         
-        if results.multi_hand_landmarks and len(results.multi_hand_landmarks) >= 2:
-            centers = []
-            for hand_landmarks in results.multi_hand_landmarks[:2]:
-                # Draw landmarks
+        candidate = None
+        if results.multi_hand_landmarks:
+            hand_entries = []
+            for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                label = None
+                if results.multi_handedness and idx < len(results.multi_handedness):
+                    label = results.multi_handedness[idx].classification[0].label
+                hand_entries.append((label, hand_landmarks))
+
+            open_hands = []
+            for label, hand_landmarks in hand_entries:
                 self.mp_draw.draw_landmarks(
                     frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
                 if self._hand_open(hand_landmarks.landmark):
-                    centers.append(self._palm_center(hand_landmarks.landmark, frame.shape))
+                    center = self._palm_center(hand_landmarks.landmark, frame.shape)
+                    open_hands.append((label, center))
 
-            if len(centers) == 2:
-                self.hands_detected = True
-                cv2.circle(frame, centers[0], 10, (0, 255, 0), -1)
-                cv2.circle(frame, centers[1], 10, (0, 255, 0), -1)
-                cv2.line(frame, centers[0], centers[1], (0, 255, 255), 3)
+            left_hand = next((h for h in open_hands if h[0] == "Left"), None)
+            right_hand = next((h for h in open_hands if h[0] == "Right"), None)
+            if left_hand and right_hand:
+                candidate = (left_hand[1], right_hand[1])
+            elif len(open_hands) >= 2 and all(h[0] is None for h in open_hands[:2]):
+                candidate = (open_hands[0][1], open_hands[1][1])
 
-                distance = np.sqrt(
-                    (centers[0][0] - centers[1][0])**2 +
-                    (centers[0][1] - centers[1][1])**2
-                )
-
-                min_dist = self.min_distance
-                max_dist = self.max_distance
-                if max_dist <= min_dist:
-                    max_dist = min_dist + 1.0
-
-                t = (distance - min_dist) / (max_dist - min_dist)
-                t = max(0, min(1, t))
-                bpm = int(self.min_bpm + t * (self.max_bpm - self.min_bpm))
-                self.last_bpm = bpm
-
-                _put_text_right(frame, f"BPM: {bpm}", 60, (0, 255, 255), scale=1.5, thickness=3)
-                _put_text_right(frame, f"Hands: {int(distance)}px", 100, (200, 200, 200), scale=0.8, thickness=2)
-                _put_text_right(frame, "BPM ACTIVE", 130, (0, 255, 0), scale=0.7, thickness=2)
-            else:
-                _put_text_right(frame, "Show 2 open hands for BPM", 60, (100, 100, 255), scale=0.7, thickness=2)
+        if candidate:
+            self._active_streak += 1
+            self._inactive_streak = 0
         else:
-            _put_text_right(frame, "Show 2 hands for BPM", 60, (100, 100, 255), scale=0.7, thickness=2)
+            self._inactive_streak += 1
+            self._active_streak = 0
+
+        if not self.bpm_active and self._active_streak >= self._active_required_frames:
+            self.bpm_active = True
+
+        if self.bpm_active and self._inactive_streak >= self._release_required_frames:
+            self.bpm_active = False
+
+        if candidate and self.bpm_active:
+            centers = candidate
+            self.hands_detected = True
+            cv2.circle(frame, centers[0], 10, (0, 255, 0), -1)
+            cv2.circle(frame, centers[1], 10, (0, 255, 0), -1)
+            cv2.line(frame, centers[0], centers[1], (0, 255, 255), 3)
+
+            distance = np.sqrt(
+                (centers[0][0] - centers[1][0])**2 +
+                (centers[0][1] - centers[1][1])**2
+            )
+            self.last_distance = float(distance)
+
+            min_dist = self.min_distance
+            max_dist = self.max_distance
+            if max_dist <= min_dist:
+                max_dist = min_dist + 1.0
+
+            t = (distance - min_dist) / (max_dist - min_dist)
+            t = max(0, min(1, t))
+            bpm = int(self.min_bpm + t * (self.max_bpm - self.min_bpm))
+            self.last_bpm = bpm
+            self.status = "active"
+        elif candidate and not self.bpm_active:
+            self.hands_detected = False
+            self.status = "hold"
+        else:
+            self.hands_detected = False
+            self.status = "idle"
         
         return bpm, frame
     
@@ -162,6 +200,11 @@ class BoardDetector:
         self.corners = None
         self.piece_grid = np.zeros((8, 8), dtype=np.int8)
         self.manual_corners_norm = None  # Normalized 4-point corners (TL, TR, BR, BL)
+        self.last_board_found = False
+        self.last_manual_used = False
+        self.last_rotation_deg = None
+        self.last_piece_count = None
+        self.last_status_text = None
         
         # Detection parameters (adjustable in real-time)
         self.sensitivity = sensitivity  # 0.0 to 1.0 (higher = more sensitive)
@@ -442,6 +485,7 @@ class BoardDetector:
         manual_used = False
         ordered = None
         angle = None
+        piece_count = None
         
         if manual_corners is not None:
             ordered = manual_corners.astype(np.float32)
@@ -536,18 +580,23 @@ class BoardDetector:
                 
                 piece_grid = self.stable_grid
                 self.piece_grid = piece_grid
-                
-                black_count = np.sum(piece_grid == 1)
-                _put_text_right(frame, f"Pieces: {black_count}", 200, (255, 255, 255), scale=0.7, thickness=2)
-            except:
-                pass
-            
+                piece_count = int(np.sum(piece_grid == BLACK))
+            except Exception:
+                piece_grid = None
+
+        if board_found:
+            self.last_board_found = True
+            self.last_manual_used = manual_used
+            self.last_rotation_deg = float(angle) if angle is not None else None
+            self.last_piece_count = piece_count
             label = "Board detected (manual)" if manual_used else "Board detected"
-            _put_text_right(frame, label, 140, (0, 255, 0), scale=0.8, thickness=2)
-            _put_text_right(frame, f"Rotation: {angle:.1f}deg", 170, (255, 200, 100), scale=0.8, thickness=2)
-        
-        if not board_found:
-            _put_text_right(frame, "Board not detected", 140, (100, 100, 255), scale=0.8, thickness=2)
+            self.last_status_text = label
+        else:
+            self.last_board_found = False
+            self.last_manual_used = False
+            self.last_rotation_deg = None
+            self.last_piece_count = None
+            self.last_status_text = "Board not detected"
         
         return rotation, piece_grid, frame
 
@@ -570,6 +619,7 @@ class CameraController:
         self.show_feed = self.config.get('show_feed', True)
         self.board_detection = self.config.get('board_detection', True)
         self.hand_detection = self.config.get('hand_detection', True)
+        self.hand_bpm_enabled = self.config.get('hand_bpm_enabled', True)
         self.debug_mode = self.config.get('debug_mode', False)
         
         # Image adjustments (can be changed at runtime)
@@ -666,13 +716,15 @@ class CameraController:
             frame = self._adjust_image(frame)
             
             # Process hands
-            if self.hand_detector:
+            if self.hand_detector and self.hand_bpm_enabled:
                 bpm, frame = self.hand_detector.process(frame)
                 if bpm is not None and self.on_bpm_change:
                     try:
                         self.on_bpm_change(bpm)
                     except Exception as e:
                         print(f"BPM callback error: {e}")
+            elif self.hand_detector:
+                self.hand_detector.reset_state()
             
             # Process board
             if self.board_detector:
@@ -701,3 +753,8 @@ class CameraController:
         if self.board_detector and self.board_detector.warped_debug is not None:
             return self.board_detector.warped_debug.copy()
         return None
+
+    def set_hand_bpm_enabled(self, enabled: bool):
+        self.hand_bpm_enabled = bool(enabled)
+        if self.hand_detector and not self.hand_bpm_enabled:
+            self.hand_detector.reset_state()

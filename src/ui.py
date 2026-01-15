@@ -10,6 +10,7 @@ except ImportError:
 from typing import Optional
 
 from grid import Grid, EMPTY, WHITE, BLACK, INSTRUMENTS
+from libraries import load_pattern_libraries
 from sequencer import Sequencer
 
 # Colors
@@ -25,14 +26,11 @@ COLOR_BUTTON = (70, 130, 180)
 COLOR_BUTTON_ACTIVE = (65, 105, 225)
 COLOR_SLIDER_BG = (60, 60, 65)
 COLOR_SLIDER_FILL = (70, 130, 180)
-COLOR_FILTER_LOW = (255, 100, 100)
-COLOR_FILTER_HIGH = (100, 200, 255)
-COLOR_FILTER_CENTER = (100, 255, 100)
 
 # Layout constants - camera-first design
 WINDOW_WIDTH = 800
-WINDOW_HEIGHT = 650
-CONTROLS_HEIGHT = 80
+WINDOW_HEIGHT = 700
+CONTROLS_HEIGHT = 120
 CAMERA_HEIGHT = WINDOW_HEIGHT - CONTROLS_HEIGHT
 
 # Mini grid settings (bottom right corner)
@@ -74,10 +72,22 @@ class UI:
         self.running = True
         self._highlighted_step = 0
         self._dragging_bpm_slider = False
-        self._dragging_filter_slider = False
+        self._dragging_cutoff_slider = False
+        self._dragging_resonance_slider = False
         self._manual_board_mode = False
         self._manual_points = []
         self._last_frame_shape = None
+        self._library_browser_open = False
+        self._library_mode = "sound"
+        self._library_index = 0
+        self._pattern_index = 0
+
+        # Load pattern libraries
+        pattern_path = None
+        if config:
+            pattern_path = config.get('libraries', 'pattern_file', default=None)
+        self.pattern_libraries = load_pattern_libraries(pattern_path)
+        self.active_pattern_libraries = [lib for lib in self.pattern_libraries if lib.get("active", True)]
         
         # Register callback for step changes
         self.sequencer.on_step_change = self._on_step_change
@@ -90,66 +100,138 @@ class UI:
         """Draw camera settings and detection status."""
         if not self.camera:
             return
-
-        y_off = 10
         settings_font = self.font_small
-        right_margin = WINDOW_WIDTH - 10
+        line_height = settings_font.get_height() + 4
+        gap_height = 6
+        padding = 10
+        margin = 10
 
-        def draw_line(text, color):
-            nonlocal y_off
-            shad = settings_font.render(text, True, (0, 0, 0))
-            txt = settings_font.render(text, True, color)
-            x = right_margin - txt.get_width()
-            self.screen.blit(shad, (x + 2, y_off + 2))
-            self.screen.blit(txt, (x, y_off))
-            y_off += 25
+        sections = []
 
-        # Brightness
-        b_text = f"Brightness (Q/A): {self.camera.brightness}"
-        draw_line(b_text, (255, 255, 255))
+        # Camera image controls
+        sections.append([
+            (f"Brightness (Q/A): {self.camera.brightness}", (255, 255, 255)),
+            (f"Contrast (W/S): {self.camera.contrast:.1f}", (255, 255, 255)),
+        ])
 
-        # Contrast
-        c_text = f"Contrast (W/S): {self.camera.contrast:.1f}"
-        draw_line(c_text, (255, 255, 255))
+        board_detector = getattr(self.camera, 'board_detector', None)
+        if board_detector:
+            detect_lines = []
+            sens = board_detector.sensitivity
+            sens_color = (100, 255, 100) if 0.4 <= sens <= 0.6 else (255, 200, 100)
+            detect_lines.append((f"Sensitivity (1-9): {sens:.1f}", sens_color))
+            detect_lines.append((f"Dark Thresh (T/G): {board_detector.dark_threshold}", (255, 255, 100)))
+            sections.append(detect_lines)
 
-        # Detection parameters
-        if hasattr(self.camera, 'board_detector') and self.camera.board_detector:
-            # Sensitivity
-            sens = self.camera.board_detector.sensitivity
-            sens_text = f"Sensitivity (1-9): {sens:.1f}"
-            color = (100, 255, 100) if 0.4 <= sens <= 0.6 else (255, 200, 100)
-            draw_line(sens_text, color)
+            status_text = board_detector.last_status_text
+            if status_text is None:
+                status_text = "Board detected" if board_detector.corners is not None else "Board not detected"
+            status_color = (0, 255, 0) if (board_detector.last_board_found or board_detector.corners is not None) else (100, 100, 255)
 
-            # Dark threshold
-            thresh = self.camera.board_detector.dark_threshold
-            thresh_text = f"Dark Thresh (T/G): {thresh}"
-            draw_line(thresh_text, (255, 255, 100))
+            board_lines = [(status_text, status_color)]
+            if board_detector.last_piece_count is not None:
+                board_lines.append((f"Pieces: {board_detector.last_piece_count}", (255, 255, 255)))
 
-            # Debug mode indicator
-            if self.camera.board_detector.debug_mode:
-                d_text = "DEBUG: ON (D to toggle)"
-                draw_line(d_text, (255, 255, 0))
-
-            # Calibration status
-            if self.camera.board_detector.calibrated:
-                cal_text = "Calibrated ✓ (R to reset)"
-                color = (0, 255, 0)
+            if board_detector.calibrated:
+                board_lines.append(("Calibrated (R to reset)", (0, 255, 0)))
             else:
-                cal_text = "Calibrating... (R to reset)"
-                color = (255, 200, 0)
-            draw_line(cal_text, color)
+                board_lines.append(("Calibrating... (R to reset)", (255, 200, 0)))
 
-            manual_corners = getattr(self.camera.board_detector, 'manual_corners_norm', None)
+            if board_detector.debug_mode:
+                board_lines.append(("Debug: ON (D to toggle)", (255, 255, 0)))
+
+            manual_corners = getattr(board_detector, 'manual_corners_norm', None)
             if self._manual_board_mode:
                 step = min(len(self._manual_points) + 1, 4)
-                manual_text = f"Manual board: click {step}/4 (TL,TR,BR,BL)"
-                draw_line(manual_text, (255, 255, 0))
+                board_lines.append((f"Manual board: click {step}/4 (TL,TR,BR,BL)", (255, 255, 0)))
             elif manual_corners is not None:
-                manual_text = "Manual board: ON (Backspace to clear)"
-                draw_line(manual_text, (255, 255, 0))
+                board_lines.append(("Manual board: ON (Backspace to clear)", (255, 255, 0)))
 
-            draw_line("RED = TOP (Steps 1-8)", (255, 50, 50))
-            draw_line("BLUE = BOTTOM (Steps 9-16)", (50, 50, 255))
+            sections.append(board_lines)
+
+        hand_detector = getattr(self.camera, 'hand_detector', None)
+        if hand_detector:
+            status = hand_detector.status
+            if status == "active":
+                status_label = "Active"
+                status_color = (0, 255, 0)
+            elif status == "hold":
+                status_label = "Hold"
+                status_color = (255, 200, 0)
+            else:
+                status_label = "Idle"
+                status_color = (160, 160, 160)
+
+            hand_enabled = getattr(self.camera, 'hand_bpm_enabled', True)
+            if not hand_enabled:
+                status_label = "Off"
+                status_color = (140, 140, 140)
+
+            bpm_lines = [
+                (f"BPM: {self.sequencer.bpm}", status_color),
+                (f"Hands: {status_label}", status_color),
+                (f"Hand BPM: {'ON' if hand_enabled else 'OFF'} (H)", status_color),
+            ]
+            if hand_detector.last_distance is not None and status == "active":
+                bpm_lines.append((f"Hands dist: {int(hand_detector.last_distance)}px", status_color))
+            sections.append(bpm_lines)
+
+        if self.audio_output and hasattr(self.audio_output, 'kit_name'):
+            volume_pct = None
+            if hasattr(self.audio_output, 'master_volume'):
+                volume_pct = int(self.audio_output.master_volume * 100)
+            kit_label = getattr(self.audio_output, 'kit_display_name', self.audio_output.kit_name)
+            kit_lines = [
+                (f"Kit (Left/Right): {kit_label}", (200, 220, 255)),
+                ("Libraries (L): browse", (200, 220, 255)),
+            ]
+            if volume_pct is not None:
+                kit_lines.append((f"Volume (Up/Down): {volume_pct}%", (200, 220, 255)))
+            sections.append(kit_lines)
+
+        sections.append([
+            ("RED = TOP (Steps 1-8)", (255, 50, 50)),
+            ("BLUE = BOTTOM (Steps 9-16)", (50, 50, 255)),
+        ])
+
+        layout = []
+        for section in sections:
+            if not section:
+                continue
+            if layout:
+                layout.append(None)
+            layout.extend(section)
+
+        if not layout:
+            return
+
+        widths = []
+        for item in layout:
+            if item is None:
+                continue
+            text, _ = item
+            widths.append(settings_font.size(text)[0])
+        max_width = max(widths) if widths else 0
+        gaps = sum(1 for item in layout if item is None)
+        panel_height = (line_height * (len(layout) - gaps)) + (gap_height * gaps) + padding * 2
+        panel_width = max_width + padding * 2
+        panel_x = WINDOW_WIDTH - panel_width - margin
+        panel_y = margin
+
+        panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+        panel.fill((0, 0, 0, 160))
+        self.screen.blit(panel, (panel_x, panel_y))
+
+        right_edge = panel_x + panel_width - padding
+        cursor_y = panel_y + padding
+        for item in layout:
+            if item is None:
+                cursor_y += gap_height
+                continue
+            text, color = item
+            txt = settings_font.render(text, True, color)
+            self.screen.blit(txt, (right_edge - txt.get_width(), cursor_y))
+            cursor_y += line_height
 
     def _screen_to_frame(self, pos):
         if not self._last_frame_shape:
@@ -406,6 +488,84 @@ class UI:
                     # Label
                     label = self.font_small.render("DEBUG WARPED", True, (255, 255, 0))
                     self.screen.blit(label, (debug_x, debug_y - 20))
+
+    def _draw_library_browser(self):
+        if not self._library_browser_open:
+            return
+
+        panel_width = int(WINDOW_WIDTH * 0.55)
+        panel_height = int(CAMERA_HEIGHT * 0.6)
+        panel_x = (WINDOW_WIDTH - panel_width) // 2
+        panel_y = (CAMERA_HEIGHT - panel_height) // 2
+        panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+        panel.fill((0, 0, 0, 200))
+        self.screen.blit(panel, (panel_x, panel_y))
+
+        title = "Sound Libraries" if self._library_mode == "sound" else "Pattern Libraries"
+        title_surf = self.font.render(title, True, COLOR_TEXT)
+        self.screen.blit(title_surf, (panel_x + 20, panel_y + 15))
+
+        libs = []
+        if self._library_mode == "sound":
+            if self.audio_output and hasattr(self.audio_output, 'sound_libraries'):
+                libs = self.audio_output.sound_libraries
+        else:
+            libs = self.pattern_libraries
+
+        if not libs:
+            empty = self.font_small.render("No libraries loaded.", True, (200, 200, 200))
+            self.screen.blit(empty, (panel_x + 20, panel_y + 60))
+            return
+
+        visible_rows = 8
+        start = max(0, min(self._library_index, len(libs) - 1) - visible_rows + 1)
+        end = min(len(libs), start + visible_rows)
+
+        y = panel_y + 60
+        for idx in range(start, end):
+            lib = libs[idx]
+            active = lib.get("active", True)
+            name = lib.get("name", lib.get("id", ""))
+            author = lib.get("author", "")
+            date = lib.get("date", "")
+            marker = "*" if active else "o"
+            line = f"{marker} {name}"
+            if author or date:
+                line += f" - {author} {date}".strip()
+            color = (255, 215, 120) if idx == self._library_index else (220, 220, 220)
+            if not active:
+                color = (120, 120, 120)
+            line_surf = self.font_small.render(line, True, color)
+            self.screen.blit(line_surf, (panel_x + 20, y))
+
+            desc = lib.get("description", "")
+            if desc:
+                desc_surf = self.font_small.render(desc, True, (160, 160, 160))
+                self.screen.blit(desc_surf, (panel_x + 40, y + 18))
+                y += 36
+            else:
+                y += 26
+
+        if self._library_mode == "pattern":
+            lib = libs[self._library_index]
+            patterns = lib.get("patterns", []) or []
+            if patterns:
+                pattern = patterns[self._pattern_index % len(patterns)]
+                p_name = pattern.get("name", f"Pattern {self._pattern_index + 1}")
+                p_desc = pattern.get("description", "")
+                p_text = f"Selected: {p_name}"
+                p_surf = self.font_small.render(p_text, True, (180, 220, 255))
+                self.screen.blit(p_surf, (panel_x + 20, panel_y + panel_height - 80))
+                if p_desc:
+                    d_surf = self.font_small.render(p_desc, True, (140, 140, 140))
+                    self.screen.blit(d_surf, (panel_x + 20, panel_y + panel_height - 60))
+
+        if self._library_mode == "pattern":
+            hint = "L: close  Tab: switch  Enter: apply  Up/Down: select  Left/Right: pattern"
+        else:
+            hint = "L: close  Tab: switch  Enter: apply  Up/Down: select"
+        hint_surf = self.font_small.render(hint, True, (180, 180, 180))
+        self.screen.blit(hint_surf, (panel_x + 20, panel_y + panel_height - 30))
     
     def _draw_controls(self):
         """Draw controls at bottom of window."""
@@ -443,41 +603,89 @@ class UI:
         btn_text = "Stop" if self.sequencer.is_playing else "Play"
         text = self.font.render(btn_text, True, COLOR_TEXT)
         self.screen.blit(text, text.get_rect(center=btn_rect.center))
-        
-        # Filter indicator (small)
-        filter_x = btn_x + 90
-        if self.audio_output and hasattr(self.audio_output, 'filter_value'):
-            fv = self.audio_output.filter_value
-            if fv < -0.1:
-                filter_text = f"LP"
-                color = COLOR_FILTER_LOW
-            elif fv > 0.1:
-                filter_text = f"HP"
-                color = COLOR_FILTER_HIGH
-            else:
-                filter_text = "—"
-                color = COLOR_FILTER_CENTER
-            
-            label = self.font.render(filter_text, True, color)
-            self.screen.blit(label, (filter_x, controls_y + 22))
 
         # Kit label
+        kit_y = controls_y + 90
         if self.audio_output and hasattr(self.audio_output, 'kit_name'):
-            kit_text = self.font_small.render(f"Kit: {self.audio_output.kit_name}", True, COLOR_TEXT)
-            self.screen.blit(kit_text, (20, controls_y + 50))
+            kit_label = getattr(self.audio_output, 'kit_display_name', self.audio_output.kit_name)
+            kit_label = f"Kit (Left/Right): {kit_label}"
+            kit_text = self.font_small.render(kit_label, True, COLOR_TEXT)
+            self.screen.blit(kit_text, (20, kit_y))
+            if hasattr(self.audio_output, 'master_volume'):
+                volume_pct = int(self.audio_output.master_volume * 100)
+                vol_text = self.font_small.render(f"Vol (Up/Down): {volume_pct}%", True, COLOR_TEXT)
+                vol_x = 20 + kit_text.get_width() + 20
+                self.screen.blit(vol_text, (vol_x, kit_y))
         
         # BPM indicator
+        hand_toggle_rect = pygame.Rect(0, 0, 0, 0)
         if self.camera and hasattr(self.camera, 'hand_detector') and self.camera.hand_detector:
-            ind_x = WINDOW_WIDTH - 120
-            if self.camera.hand_detector.hands_detected:
-                pygame.draw.circle(self.screen, (0, 255, 0), (ind_x, controls_y + 30), 8)
-                label = self.font_small.render("BPM", True, (0, 255, 0))
-            else:
-                pygame.draw.circle(self.screen, (80, 80, 80), (ind_x, controls_y + 30), 8)
-                label = self.font_small.render("BPM", True, (100, 100, 100))
-            self.screen.blit(label, (ind_x + 15, controls_y + 23))
+            hand_enabled = getattr(self.camera, 'hand_bpm_enabled', True)
+            hand_label = "Hands BPM: ON" if hand_enabled else "Hands BPM: OFF"
+            hand_color = COLOR_BUTTON_ACTIVE if hand_enabled else COLOR_BUTTON
+            hand_toggle_rect = pygame.Rect(WINDOW_WIDTH - 180, controls_y + 15, 160, 36)
+            pygame.draw.rect(self.screen, hand_color, hand_toggle_rect, border_radius=5)
+            hand_text = self.font_small.render(hand_label, True, COLOR_TEXT)
+            self.screen.blit(hand_text, hand_text.get_rect(center=hand_toggle_rect.center))
         
-        return btn_rect, pygame.Rect(slider_x, controls_y + 15, slider_width, 30)
+        cutoff_rect = pygame.Rect(0, 0, 0, 0)
+        resonance_rect = pygame.Rect(0, 0, 0, 0)
+        if self.audio_output and hasattr(self.audio_output, 'filter_cutoff') and getattr(self.audio_output, 'filter_enabled', True):
+            filter_row_y = controls_y + 70
+            row_padding = 20
+            gap = 40
+            column_width = int((WINDOW_WIDTH - (row_padding * 2) - gap) / 2)
+            slider_height = 8
+            slider_radius = 6
+
+            cutoff_value = float(self.audio_output.filter_cutoff)
+            cutoff_min = float(self.audio_output.filter_cutoff_min)
+            cutoff_max = float(self.audio_output.filter_cutoff_max)
+            cutoff_ratio = 0.0 if cutoff_max <= cutoff_min else (cutoff_value - cutoff_min) / (cutoff_max - cutoff_min)
+            cutoff_ratio = max(0.0, min(1.0, cutoff_ratio))
+            if cutoff_value >= 1000:
+                cutoff_label = f"Cutoff {cutoff_value / 1000:.1f}kHz"
+            else:
+                cutoff_label = f"Cutoff {int(cutoff_value)}Hz"
+            cutoff_label_surf = self.font_small.render(cutoff_label, True, COLOR_TEXT)
+            cutoff_x = int(row_padding)
+            self.screen.blit(cutoff_label_surf, (cutoff_x, filter_row_y - cutoff_label_surf.get_height() // 2))
+            cutoff_slider_x = int(cutoff_x + cutoff_label_surf.get_width() + 8)
+            cutoff_slider_w = max(60, int(column_width - cutoff_label_surf.get_width() - 8))
+            cutoff_rect = pygame.Rect(cutoff_slider_x, filter_row_y - slider_height // 2, cutoff_slider_w, slider_height)
+            pygame.draw.rect(self.screen, COLOR_SLIDER_BG, cutoff_rect, border_radius=4)
+            cutoff_fill_w = int(cutoff_slider_w * cutoff_ratio)
+            cutoff_fill = pygame.Rect(cutoff_slider_x, cutoff_rect.y, cutoff_fill_w, slider_height)
+            pygame.draw.rect(self.screen, COLOR_SLIDER_FILL, cutoff_fill, border_radius=4)
+            cutoff_handle_x = cutoff_slider_x + cutoff_fill_w
+            pygame.draw.circle(self.screen, COLOR_TEXT, (cutoff_handle_x, filter_row_y), slider_radius)
+
+            res_value = float(self.audio_output.filter_resonance)
+            res_min = float(self.audio_output.filter_resonance_min)
+            res_max = float(self.audio_output.filter_resonance_max)
+            res_ratio = 0.0 if res_max <= res_min else (res_value - res_min) / (res_max - res_min)
+            res_ratio = max(0.0, min(1.0, res_ratio))
+            res_label = f"Resonance {res_value:.2f}"
+            res_label_surf = self.font_small.render(res_label, True, COLOR_TEXT)
+            res_x = int(row_padding + column_width + gap)
+            self.screen.blit(res_label_surf, (res_x, filter_row_y - res_label_surf.get_height() // 2))
+            res_slider_x = int(res_x + res_label_surf.get_width() + 8)
+            res_slider_w = max(60, int(column_width - res_label_surf.get_width() - 8))
+            resonance_rect = pygame.Rect(res_slider_x, filter_row_y - slider_height // 2, res_slider_w, slider_height)
+            pygame.draw.rect(self.screen, COLOR_SLIDER_BG, resonance_rect, border_radius=4)
+            res_fill_w = int(res_slider_w * res_ratio)
+            res_fill = pygame.Rect(res_slider_x, resonance_rect.y, res_fill_w, slider_height)
+            pygame.draw.rect(self.screen, COLOR_SLIDER_FILL, res_fill, border_radius=4)
+            res_handle_x = res_slider_x + res_fill_w
+            pygame.draw.circle(self.screen, COLOR_TEXT, (res_handle_x, filter_row_y), slider_radius)
+
+        return (
+            btn_rect,
+            pygame.Rect(slider_x, controls_y + 15, slider_width, 30),
+            cutoff_rect,
+            resonance_rect,
+            hand_toggle_rect,
+        )
     
     def _get_mini_cell_from_pos(self, pos: tuple) -> Optional[tuple]:
         """Get (row, col) from mouse position on mini grid."""
@@ -494,7 +702,7 @@ class UI:
     
     def handle_events(self) -> bool:
         """Handle pygame events."""
-        btn_rect, slider_rect = self._control_rects
+        btn_rect, slider_rect, cutoff_rect, resonance_rect, hand_toggle_rect = self._control_rects
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -519,9 +727,18 @@ class UI:
                 
                 if btn_rect.collidepoint(pos):
                     self.sequencer.toggle()
+                elif hand_toggle_rect.collidepoint(pos):
+                    if self.camera and hasattr(self.camera, 'set_hand_bpm_enabled'):
+                        self.camera.set_hand_bpm_enabled(not self.camera.hand_bpm_enabled)
                 elif slider_rect.collidepoint(pos):
                     self._dragging_bpm_slider = True
                     self._update_bpm_from_pos(pos[0], slider_rect)
+                elif cutoff_rect.collidepoint(pos):
+                    self._dragging_cutoff_slider = True
+                    self._update_cutoff_from_pos(pos[0], cutoff_rect)
+                elif resonance_rect.collidepoint(pos):
+                    self._dragging_resonance_slider = True
+                    self._update_resonance_from_pos(pos[0], resonance_rect)
                 else:
                     # Check mini grid
                     cell = self._get_mini_cell_from_pos(pos)
@@ -530,12 +747,51 @@ class UI:
             
             elif event.type == pygame.MOUSEBUTTONUP:
                 self._dragging_bpm_slider = False
+                self._dragging_cutoff_slider = False
+                self._dragging_resonance_slider = False
             
             elif event.type == pygame.MOUSEMOTION:
                 if self._dragging_bpm_slider:
                     self._update_bpm_from_pos(event.pos[0], slider_rect)
+                elif self._dragging_cutoff_slider:
+                    self._update_cutoff_from_pos(event.pos[0], cutoff_rect)
+                elif self._dragging_resonance_slider:
+                    self._update_resonance_from_pos(event.pos[0], resonance_rect)
             
             elif event.type == pygame.KEYDOWN:
+                if self._library_browser_open:
+                    if event.key == pygame.K_l or event.key == pygame.K_ESCAPE:
+                        self._library_browser_open = False
+                        continue
+                    if event.key == pygame.K_TAB:
+                        self._library_mode = "pattern" if self._library_mode == "sound" else "sound"
+                        self._library_index = 0
+                        self._pattern_index = 0
+                        continue
+                    if event.key == pygame.K_UP:
+                        self._library_index = max(0, self._library_index - 1)
+                        continue
+                    if event.key == pygame.K_DOWN:
+                        max_idx = 0
+                        if self._library_mode == "sound":
+                            libs = getattr(self.audio_output, 'sound_libraries', []) if self.audio_output else []
+                            max_idx = max(0, len(libs) - 1)
+                        else:
+                            max_idx = max(0, len(self.pattern_libraries) - 1)
+                        self._library_index = min(max_idx, self._library_index + 1)
+                        continue
+                    if self._library_mode == "pattern":
+                        if event.key == pygame.K_LEFT:
+                            self._pattern_index = max(0, self._pattern_index - 1)
+                            continue
+                        if event.key == pygame.K_RIGHT:
+                            self._pattern_index = self._pattern_index + 1
+                            continue
+                    if event.key == pygame.K_RETURN:
+                        self._apply_library_selection()
+                        continue
+                    continue
+
                 if event.key == pygame.K_SPACE:
                     self.sequencer.toggle()
                 elif event.key == pygame.K_c:
@@ -638,22 +894,34 @@ class UI:
                         self.camera.contrast = 1.0
                 elif event.key == pygame.K_ESCAPE:
                     return False
-                # Filter controls
+                elif event.key == pygame.K_h:
+                    if self.camera and hasattr(self.camera, 'set_hand_bpm_enabled'):
+                        self.camera.set_hand_bpm_enabled(not self.camera.hand_bpm_enabled)
+                elif event.key == pygame.K_l:
+                    self._library_browser_open = not self._library_browser_open
+                    if self._library_browser_open:
+                        self._library_mode = "sound"
+                        self._library_index = 0
+                        self._pattern_index = 0
+                # Kit + volume controls
                 elif event.key == pygame.K_LEFT:
-                    self._adjust_filter(-0.1)
-                elif event.key == pygame.K_RIGHT:
-                    self._adjust_filter(0.1)
-                elif event.key == pygame.K_0:
-                    if self.audio_output:
-                        self.audio_output.filter_value = 0.0
-                elif event.key == pygame.K_LEFTBRACKET:
                     if self.audio_output:
                         new_kit = self.audio_output.cycle_kit(-1)
                         print(f"Kit: {new_kit}")
-                elif event.key == pygame.K_RIGHTBRACKET:
+                elif event.key == pygame.K_RIGHT:
                     if self.audio_output:
                         new_kit = self.audio_output.cycle_kit(1)
                         print(f"Kit: {new_kit}")
+                elif event.key == pygame.K_UP:
+                    if self.audio_output and hasattr(self.audio_output, 'adjust_volume'):
+                        self.audio_output.adjust_volume(0.05)
+                elif event.key == pygame.K_DOWN:
+                    if self.audio_output and hasattr(self.audio_output, 'adjust_volume'):
+                        self.audio_output.adjust_volume(-0.05)
+                elif event.key == pygame.K_0:
+                    if self.audio_output:
+                        if hasattr(self.audio_output, 'reset_filter'):
+                            self.audio_output.reset_filter()
         
         return True
     
@@ -662,12 +930,62 @@ class UI:
         ratio = (x - slider_rect.x) / slider_rect.width
         ratio = max(0, min(1, ratio))
         self.sequencer.bpm = int(30 + ratio * (300 - 30))
-    
-    def _adjust_filter(self, delta: float):
-        """Adjust filter value."""
-        if self.audio_output and hasattr(self.audio_output, 'filter_value'):
-            new_val = self.audio_output.filter_value + delta
-            self.audio_output.filter_value = max(-1, min(1, new_val))
+
+    def _update_cutoff_from_pos(self, x: int, slider_rect: pygame.Rect):
+        """Update filter cutoff from slider position."""
+        if not self.audio_output or slider_rect.width <= 0:
+            return
+        ratio = (x - slider_rect.x) / slider_rect.width
+        ratio = max(0.0, min(1.0, ratio))
+        cutoff_min = getattr(self.audio_output, 'filter_cutoff_min', 80.0)
+        cutoff_max = getattr(self.audio_output, 'filter_cutoff_max', 12000.0)
+        cutoff = cutoff_min + ratio * (cutoff_max - cutoff_min)
+        self.audio_output.set_filter_cutoff(cutoff)
+
+    def _update_resonance_from_pos(self, x: int, slider_rect: pygame.Rect):
+        """Update filter resonance from slider position."""
+        if not self.audio_output or slider_rect.width <= 0:
+            return
+        ratio = (x - slider_rect.x) / slider_rect.width
+        ratio = max(0.0, min(1.0, ratio))
+        res_min = getattr(self.audio_output, 'filter_resonance_min', 0.5)
+        res_max = getattr(self.audio_output, 'filter_resonance_max', 6.0)
+        resonance = res_min + ratio * (res_max - res_min)
+        self.audio_output.set_filter_resonance(resonance)
+
+    def _apply_library_selection(self):
+        if self._library_mode == "sound":
+            if not self.audio_output or not hasattr(self.audio_output, 'sound_libraries'):
+                return
+            libs = self.audio_output.sound_libraries
+            if not libs:
+                return
+            lib = libs[min(self._library_index, len(libs) - 1)]
+            if not lib.get("active", True):
+                return
+            kit_id = lib.get("id")
+            if kit_id:
+                self.audio_output.set_kit(kit_id)
+            self._library_browser_open = False
+            return
+
+        libs = self.pattern_libraries
+        if not libs:
+            return
+        lib = libs[min(self._library_index, len(libs) - 1)]
+        if not lib.get("active", True):
+            return
+        patterns = lib.get("patterns", []) or []
+        if not patterns:
+            return
+        pattern = patterns[self._pattern_index % len(patterns)]
+        grid = pattern.get("grid")
+        if grid and hasattr(self.grid, "set_matrix"):
+            self.grid.set_matrix(grid)
+        kit_id = lib.get("kit")
+        if kit_id and self.audio_output:
+            self.audio_output.set_kit(kit_id)
+        self._library_browser_open = False
     
     def draw(self):
         """Draw everything."""
@@ -675,11 +993,12 @@ class UI:
         
         self._draw_camera_feed()
         self._draw_mini_grid()
+        self._draw_library_browser()
         self._control_rects = self._draw_controls()
     
     def run(self):
         """Main loop."""
-        self._control_rects = (pygame.Rect(0, 0, 0, 0),) * 2
+        self._control_rects = (pygame.Rect(0, 0, 0, 0),) * 5
         
         while self.running:
             if not self.handle_events():
