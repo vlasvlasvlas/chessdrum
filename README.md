@@ -56,7 +56,20 @@ A drum sequencer where an 8x8 chessboard controls a 4-instrument, 16-step drum p
 └─────────────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+## � Requirements
+
+- **Python**: 3.9+ (tested on 3.9.6)
+- **OS**: macOS, Linux, Windows
+  - ARM64 macOS (M1/M2): Fully supported with pinned versions
+- **Camera**: Optional (0 or 1 USB/built-in camera for detection mode)
+- **Dependencies**: See [requirements.txt](requirements.txt)
+  - `pygame` (GUI + audio)
+  - `opencv-python==4.8.1.78` (camera, version pinned)
+  - `mediapipe==0.10.9` (hand tracking, version pinned, optional)
+  - `numpy`, `scipy` (audio processing)
+  - `mido`, `python-rtmidi` (MIDI output)
+
+## �🚀 Quick Start
 
 ### Using the Launcher (Recommended)
 ```bash
@@ -260,6 +273,14 @@ All settings in `config.json`:
     "max_freq": 12000,
     "resonance": 3.0
   },
+  "mixer": {
+    "channel_volumes": [1.0, 1.0, 1.0, 1.0],
+    "channel_mutes": [false, false, false, false],
+    "channel_delay": [0.0, 0.0, 0.0, 0.0],
+    "channel_reverb": [0.0, 0.0, 0.0, 0.0],
+    "delay_time_ms": 250,
+    "delay_feedback": 0.4
+  },
   "sequencer": {
     "default_bpm": 120
   },
@@ -280,6 +301,12 @@ All settings in `config.json`:
 | `audio.volume` | Master volume (0.0 - 1.0) |
 | `audio.channels` | Mixer channels (overlap headroom for longer samples) |
 | `audio.instrument_gain` | Per-instrument gain map (`kick`, `snare`, `hihat`, `clap`) |
+| `mixer.channel_volumes` | Initial volume per channel [HH, CP, SD, KK] (0.0-1.0) (NEW) |
+| `mixer.channel_mutes` | Initial mute state per channel (true/false) (NEW) |
+| `mixer.channel_delay` | Initial delay mix per channel (0.0-1.0) (NEW) |
+| `mixer.channel_reverb` | Initial reverb mix per channel (0.0-1.0) (NEW) |
+| `mixer.delay_time_ms` | Delay time in milliseconds (NEW) |
+| `mixer.delay_feedback` | Delay feedback amount (0.0-1.0) (NEW) |
 | `midi.enabled` | Output MIDI to DAW |
 | `camera.brightness` | Image brightness offset |
 | `camera.contrast` | Image contrast multiplier |
@@ -506,36 +533,90 @@ chessdrum/
 └── README.md
 ```
 
-## 🗺️ Roadmap
+## 🗺️ Development Timeline
 
+### ✅ FASE 0: Logging & Stability (Completed)
+- [x] Rotating log file system (10MB, 5 backups)
+- [x] Color-coded console output (DEBUG/INFO/WARNING/ERROR)
+- [x] MediaPipe graceful fallback for ARM64 compatibility
+- [x] Version pinning: opencv-python==4.8.1.78, mediapipe==0.10.9
+
+### ✅ FASE 1: Architecture & Performance (Completed)
+- [x] Split monolithic `camera.py` → `vision/` package (3 modules)
+- [x] Producer-consumer pattern (30 FPS stable)
+- [x] Dynamic board sizing (200-800px adaptive)
+- [x] Board stability scoring & adaptive filtering
+- [x] Calibration persistence (save/load)
+
+### ✅ FASE 2: UI/UX Improvements (Completed)
+- [x] Performance metrics overlay (capture/detection FPS)
+- [x] Calibration status indicator (calibrating/ready)
+- [x] Hand detection status (hands count, BPM active)
+- [x] Board corners visualization (green polygon)
+- [x] Notification system (toast messages, 3s fade)
+- [x] Virtual mode (large grid, no camera required)
+
+### ✅ FASE 4: Channel Mixer & FX (Completed)
+- [x] 4-channel mixer panel (lateral right, 200px)
+- [x] Per-channel volume faders (vertical, 0-100%)
+- [x] Per-channel mute buttons (visual feedback)
+- [x] Delay effect (250ms, 40% feedback, wet/dry per channel)
+- [x] Reverb effect (convolution, exponential decay)
+- [x] Real-time FX processing (zero latency)
+- [x] Dynamic window resize (800→1000px when mixer open)
+- [x] Interactive launcher script (`run.sh`)
+
+### Core Features (Original)
 - [x] Virtual sequencer with GUI
-- [x] Built-in synth sounds
-- [x] Multiple sound kits (classic, real, dnb, ethnic, 8bit, bizarre)
+- [x] Built-in synth sounds (6 kits)
 - [x] Synth filter with resonance
-- [x] JSON configuration
-- [x] **Camera detection** (OpenCV + MediaPipe)
-  - [x] Detect physical chessboard with contours
-  - [x] Detect BLACK pieces (optimized for contrast)
-  - [x] Real-time adjustable thresholds (sensitivity & dark_threshold)
-  - [x] Auto-calibration for lighting conditions
-  - [x] Temporal filtering (5/7 frames consensus)
-  - [x] Debug mode with warped board visualization
-  - [x] Manual recalibration (R key)
-  - [x] Manual board corners (M + 4 clicks)
-  - [x] On-screen parameter display
-  - [x] Enhanced playhead overlay on physical board
-  - [x] Two open hands → BPM control
+- [x] JSON configuration system
+- [x] Camera detection (OpenCV + MediaPipe)
+- [x] Physical chessboard detection
+- [x] Black piece detection (optimized for contrast)
+- [x] Real-time adjustable thresholds
+- [x] Auto-calibration for lighting
+- [x] Temporal filtering (5/7 frames)
+- [x] Debug mode with warped view
+- [x] Manual recalibration (R key)
+- [x] Manual board corners (M + 4 clicks)
+- [x] Two open hands → BPM control
 
-## 🔮 Ideas & Future Additions
+## 🔮 Future Ideas
 
-- Melodic layers (toggle on/off) mapped to extra rows or a second board
-- Per-instrument mute/solo and per-row volume
-- Save/load pattern banks + pattern chaining
+### Audio & Mixing
+- Per-step velocity levels (multiple piece colors)
+- Per-instrument reverb/delay send amounts
+- Compressor/limiter on master output
+- External WAV sample loader
+- Pattern chaining & automation
+
+### Sequencing
+- Probability steps (% chance to trigger)
+- Ratcheting (sub-divisions per step)
+- Conditional fills (every N bars)
+- Save/load pattern banks
 - Export patterns to MIDI file
-- Probability/conditional steps (ratchets, fills)
-- More kit types + external WAV sampler loader
-- Hand gestures to toggle sections or change kit live
-- Per-cell velocity levels (multiple piece colors)
+- Multiple pages/patterns per session
+
+### Camera & Detection
+- Hand gestures to toggle sections or change kit
+- Multi-board support (2+ boards for longer patterns)
+- Colored piece detection for velocity/variation
+- Auto-save calibration per board ID
+
+### Melodic Extensions
+- Toggle melodic mode (pitch per row)
+- Second board for melody/bass
+- Chord mode (detect multiple pieces → chord)
+- Scale snapping (pentatonic, major, minor, etc.)
+
+### UI/UX
+- Dark/light theme toggle
+- Customizable color schemes per kit
+- Fullscreen mode
+- Pattern visualization (waveform/spectrum)
+- Tutorial mode with hints
 
 ## 📜 License
 
