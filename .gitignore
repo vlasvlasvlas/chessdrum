@@ -1,6 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 
+# Virtual environments
 venv/
+env/
+ENV/
 
+# Logs (Phase 0)
+logs/
+*.log
+
+# Temporary documentation
 tmp_docs/
 
+# Reference projects
 git_simiilar_project_to_get_ideas/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

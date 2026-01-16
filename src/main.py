@@ -23,9 +23,14 @@ Controls:
 import sys
 import os
 import argparse
+import numpy as np
 
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Initialize logging FIRST (before other imports)
+from logger import init_logging, get_logger
+logger = get_logger(__name__)
 
 from grid import Grid
 from sequencer import Sequencer
@@ -44,7 +49,13 @@ def main():
                         help='Camera device ID (0=built-in, 1=external, etc.)')
     parser.add_argument('--no-filter', action='store_true',
                         help='Disable filter effect')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Enable verbose logging (DEBUG level)')
     args = parser.parse_args()
+    
+    # Initialize logging system
+    init_logging(verbose=args.verbose)
+    logger.info("ChessDrum starting...")
     
     # Get project name from config
     project_name = config.get('project', 'name', default='ChessDrum')
@@ -56,6 +67,7 @@ def main():
     
     # Determine camera usage first
     use_camera = args.camera or config.get('camera', 'enabled', default=False)
+    logger.info(f"Camera mode: {use_camera}")
     
     print("Controls:")
     print("  • Click cells to toggle pieces (empty → black → empty)")
@@ -90,18 +102,23 @@ def main():
     print("  • HH=Hi-Hat, CP=Clap, SD=Snare, KK=Kick")
     print()
     
+    logger.debug("Initializing grid...")
     # Initialize components
     grid = Grid()
     
     # Choose output mode (CLI args override config)
     use_midi = args.midi or config.get('midi', 'enabled', default=False)
+    logger.info(f"MIDI mode: {use_midi}")
     
     if use_midi:
+        logger.debug("Importing MIDI output...")
         from midi_output import MidiOutput
         output = MidiOutput()
         print("Mode: MIDI output")
+        logger.info("MIDI output initialized")
         audio_ref = None
     else:
+        logger.debug("Importing Audio output...")
         from audio_output import AudioOutput
         # Pass config for filter settings
         filter_config = {
@@ -111,24 +128,30 @@ def main():
         }
         if args.no_filter:
             filter_config['filter']['enabled'] = False
+            logger.info("Filter disabled by command line argument")
         
         output = AudioOutput(config=filter_config)
         print("Mode: Audio samples")
+        logger.info("Audio output initialized")
         audio_ref = output
     
+    logger.debug("Initializing sequencer...")
     sequencer = Sequencer(grid, output)
     sequencer.bpm = config.get('sequencer', 'default_bpm', default=120)
+    logger.info(f"Sequencer initialized at {sequencer.bpm} BPM")
     
     # Initialize camera if requested (use_camera already defined earlier)
     camera_controller = None
     
     if use_camera:
         try:
-            from camera import CameraController
+            logger.debug("Importing vision module...")
+            from vision import CameraController
             
             camera_config = config.camera
             # Use --cam argument if provided, otherwise use config
             device_id = args.cam if args.cam is not None else camera_config.get('device_id', 0)
+            logger.info(f"Initializing camera on device {device_id}")
             
             camera_controller = CameraController(
                 device_id=device_id,
@@ -137,12 +160,15 @@ def main():
             
             # Set up callbacks
             def on_bpm_change(bpm):
+                logger.debug(f"BPM changed to {bpm} via hand gesture")
                 sequencer.bpm = bpm
             
             def on_pieces_change(pieces):
                 # Update grid with detected pieces
                 # pieces is 8x8 numpy array: 0=empty, 1=black, 2=white
                 if pieces is not None:
+                    piece_count = np.count_nonzero(pieces)
+                    logger.debug(f"Pieces detected: {piece_count}")
                     for row in range(8):
                         for col in range(8):
                             grid.set_cell(row, col, int(pieces[row, col]))
@@ -152,26 +178,50 @@ def main():
             
             if camera_controller.start():
                 print("Camera: Enabled (two open hands for BPM)")
+                logger.info("Camera started successfully")
             else:
                 camera_controller = None
                 print("Camera: Failed to start")
+                logger.error("Camera failed to start")
         except ImportError as e:
             print(f"Camera: Not available ({e})")
+            logger.error(f"Camera import failed: {e}", exc_info=True)
+            camera_controller = None
+        except Exception as e:
+            print(f"Camera: Error ({e})")
+            logger.error(f"Camera initialization error: {e}", exc_info=True)
             camera_controller = None
     
     # Pass audio_output and camera to UI
+    logger.debug("Initializing UI...")
     ui = UI(grid, sequencer, audio_output=audio_ref, config=config, camera=camera_controller)
+    logger.info("UI initialized")
     
     # Run the app
+    logger.info("Starting main loop...")
     try:
         ui.run()
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user (Ctrl+C)")
+    except Exception as e:
+        logger.critical(f"Fatal error in main loop: {e}", exc_info=True)
+        raise
     finally:
+        logger.info("Shutting down...")
         sequencer.stop()
         output.close()
         if camera_controller:
             camera_controller.stop()
+        logger.info("Cleanup complete")
         print("\n👋 Goodbye!")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        # Catch any unhandled exceptions at the top level
+        logger.critical(f"Unhandled exception: {e}", exc_info=True)
+        print(f"\n❌ Fatal error: {e}")
+        print("Check logs/chessdrum.log for details")
+        sys.exit(1)

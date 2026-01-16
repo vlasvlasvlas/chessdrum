@@ -4,15 +4,29 @@ Detects chessboard (pieces + rotation) and hands (BPM control).
 """
 import cv2
 import numpy as np
-try:
-    import mediapipe as mp
-except ImportError:
-    mp = None
 from typing import Optional, Tuple, List
 import threading
 import time
 
 from grid import BLACK
+from logger import get_logger
+
+logger = get_logger(__name__)
+
+# Graceful degradation for MediaPipe
+MEDIAPIPE_AVAILABLE = False
+mp = None
+
+try:
+    import mediapipe as mp
+    # Test if solutions module is accessible
+    _ = mp.solutions.hands
+    MEDIAPIPE_AVAILABLE = True
+    logger.info("MediaPipe loaded successfully")
+except (ImportError, AttributeError, OSError) as e:
+    logger.warning(f"MediaPipe not available: {e}")
+    logger.warning("Hand detection will be disabled")
+    mp = None
 
 
 class HandDetector:
@@ -35,12 +49,13 @@ class HandDetector:
         self.min_distance = min_distance
         self.max_distance = max_distance
         
-        # MediaPipe hands
-        if mp is None:
-            print("⚠ Hand detection disabled: mediapipe not installed")
+        # MediaPipe hands - with graceful fallback
+        if not MEDIAPIPE_AVAILABLE or mp is None:
+            logger.warning("HandDetector: MediaPipe not available, hand detection disabled")
             self.enabled = False
             self.hands = None
             self.mp_draw = None
+            self.mp_hands = None
         else:
             try:
                 self.mp_hands = mp.solutions.hands
@@ -52,11 +67,13 @@ class HandDetector:
                 )
                 self.mp_draw = mp.solutions.drawing_utils
                 self.enabled = True
-            except (AttributeError, ImportError) as e:
-                print(f"⚠ Hand detection disabled: {e}")
+                logger.info("HandDetector initialized successfully")
+            except (AttributeError, ImportError, OSError, RuntimeError) as e:
+                logger.error(f"HandDetector initialization failed: {e}", exc_info=True)
                 self.enabled = False
                 self.hands = None
                 self.mp_draw = None
+                self.mp_hands = None
         
         # State
         self.last_bpm: Optional[int] = None
@@ -105,10 +122,14 @@ class HandDetector:
         """
         if not self.enabled or self.hands is None:
             return None, frame
-            
-        # Convert to RGB for MediaPipe
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.hands.process(rgb)
+        
+        try:
+            # Convert to RGB for MediaPipe
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.hands.process(rgb)
+        except Exception as e:
+            logger.error(f"MediaPipe hand processing error: {e}", exc_info=True)
+            return None, frame
         
         bpm = None
         self.hands_detected = False
@@ -673,29 +694,37 @@ class CameraController:
     def start(self):
         """Start camera capture in a separate thread."""
         if self.running:
-            return
+            logger.warning("Camera already running")
+            return True
         
+        logger.info(f"Opening camera device {self.device_id}...")
         self.cap = cv2.VideoCapture(self.device_id)
         if not self.cap.isOpened():
-            print(f"✗ Could not open camera {self.device_id}")
+            logger.error(f"Could not open camera device {self.device_id}")
             return False
         
         self.running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
-        print(f"✓ Camera started (device {self.device_id})")
+        logger.info(f"Camera capture thread started (device {self.device_id})")
         return True
     
     def stop(self):
         """Stop camera capture."""
+        if not self.running:
+            return
+            
+        logger.info("Stopping camera...")
         self.running = False
         if self.thread:
             self.thread.join(timeout=2.0)
+            if self.thread.is_alive():
+                logger.warning("Camera thread did not stop cleanly")
         if self.cap:
             self.cap.release()
         if self.hand_detector:
             self.hand_detector.close()
-        print("✓ Camera stopped")
+        logger.info("Camera stopped")
     
     def _adjust_image(self, frame: np.ndarray) -> np.ndarray:
         """Apply brightness and contrast adjustments."""

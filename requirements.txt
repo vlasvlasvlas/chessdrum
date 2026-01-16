@@ -1,4 +1,4 @@
-# Reversi Drum Machine - Dependencies
+# ChessDrum - Dependencies
 
 # GUI and audio
 pygame>=2.5.0
@@ -13,6 +13,11 @@ numpy>=1.24.0
 # Audio filtering
 scipy>=1.10.0
 
-# Phase 2: Camera detection
-opencv-python>=4.8.0
-mediapipe>=0.10.0
+# Camera detection - Version pinned for stability
+# Note: These versions are tested on macOS ARM64
+opencv-python==4.8.1.78
+mediapipe==0.10.9
+
+# Logging and monitoring (Phase 0)
+# psutil will be added in Phase 2 for CPU monitoring
+
