@@ -40,6 +40,7 @@ class BoardDetector:
         self.rotation_angle = 0.0
         self.board_rect = None
         self.corners = None
+        self.corners_norm = None  # FASE 2: Normalized corners for UI visualization
         self.piece_grid = np.zeros((8, 8), dtype=np.int8)
         self.manual_corners_norm = None  # Normalized 4-point corners (TL, TR, BR, BL)
         self.last_board_found = False
@@ -110,6 +111,7 @@ class BoardDetector:
         self.manual_corners_norm = None
         self.board_rect = None
         self.corners = None
+        self.corners_norm = None  # FASE 2: Clear normalized corners
         self.calibrated = False
         self.detection_history.clear()
         logger.info("Manual corners cleared")
@@ -451,6 +453,8 @@ class BoardDetector:
             manual_used = True
             self.board_rect = None
             self.corners = ordered
+            # FASE 2: Store normalized corners for UI visualization
+            self.corners_norm = [(float(p[0]) / w, float(p[1]) / h) for p in ordered]
             top_vec = ordered[1] - ordered[0]
             angle = float(np.degrees(np.arctan2(top_vec[1], top_vec[0])))
             contour_area = frame_area * 0.25  # Assume 25% for manual
@@ -463,6 +467,8 @@ class BoardDetector:
             self.board_rect = rect
             ordered = self._order_points(box.astype(np.float32))
             self.corners = ordered
+            # FASE 2: Store normalized corners for UI visualization
+            self.corners_norm = [(float(p[0]) / w, float(p[1]) / h) for p in ordered]
             
             angle = rect[2]
             width, height = rect[1]

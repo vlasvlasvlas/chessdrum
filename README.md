@@ -7,12 +7,33 @@ A drum sequencer where an 8x8 chessboard controls a 4-instrument, 16-step drum p
 
 ## ✨ Highlights
 
-- Manual board calibration (4 clicks) with debug warped view
-- Two open hands to control BPM, single hand does not change tempo
-- Six built-in sound kits (classic, real, dnb, ethnic, 8bit, bizarre)
-- Sound + pattern libraries (JSON) with in-app browser (press L)
-- Real-time detection tuning (sensitivity/threshold/brightness/contrast)
-- Audio synth filter + MIDI output option
+### Core Features
+- **Virtual & Camera modes**: Use physical board or interactive grid
+- **4-Channel Mixer** (NEW): Individual volume, mute, delay & reverb per channel
+- **6 built-in sound kits**: classic, real, dnb, ethnic, 8bit, bizarre
+- **Sound + pattern libraries**: JSON-based with in-app browser (press L)
+- **Synth filter**: Real-time cutoff/resonance control
+- **MIDI output**: Send to DAW
+
+### Camera Detection (NEW)
+- **Producer-consumer architecture**: 30 FPS capture & detection on separate threads
+- **Adaptive board detection**: Dynamic sizing (200-800px), stability scoring
+- **Manual calibration**: 4-click corner override
+- **Real-time tuning**: Sensitivity/threshold/brightness/contrast
+- **Hand BPM control**: Two open hands to adjust tempo (20-220 BPM)
+
+### UI/UX (NEW)
+- **Performance metrics**: Live FPS overlay (capture/detection)
+- **Calibration status**: Visual indicator (calibrating/ready)
+- **Notification system**: Toast messages for actions
+- **Board corner visualization**: Green overlay showing detected area
+- **Virtual mode**: Large clickable grid when no camera available
+
+### Stability & Logging (NEW)
+- **Rotating log files**: 10MB max, 5 backups (logs/chessdrum.log)
+- **Color-coded console**: DEBUG/INFO/WARNING/ERROR levels
+- **Graceful fallbacks**: MediaPipe optional, stable on ARM64 macOS
+- **Version pinning**: opencv-python==4.8.1.78, mediapipe==0.10.9
 
 ## 🎮 How It Works
 
@@ -37,12 +58,32 @@ A drum sequencer where an 8x8 chessboard controls a 4-instrument, 16-step drum p
 
 ## 🚀 Quick Start
 
+### Using the Launcher (Recommended)
+```bash
+# Interactive launcher with camera detection
+./run.sh
+```
+
+The launcher will:
+- ✅ Activate virtual environment automatically
+- 🔍 Detect available cameras
+- 🎮 Let you choose virtual or camera mode
+- 📹 List all camera options if multiple found
+- 📝 Ask about verbose logging
+
+### Manual Start
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Run
+# Virtual mode (no camera)
 python3 src/main.py
+
+# Camera mode
+python3 src/main.py --camera --cam 0
+
+# Camera mode with verbose logging
+python3 src/main.py --camera --cam 0 --verbose
 ```
 
 ## 🎛️ Controls
@@ -54,6 +95,17 @@ python3 src/main.py
 | **Space** | Play/Stop |
 | **C** | Clear board |
 | **ESC** | Quit |
+| **X** | **Toggle Mixer Panel** (NEW) |
+
+### Mixer Controls (NEW - Press X to open)
+| Input | Action |
+|-------|--------|
+| **Vertical faders** | Adjust channel volume (drag with mouse) |
+| **M buttons** | Mute/unmute individual channels (click) |
+| **DLY knobs** | Delay wet/dry mix per channel (drag circular) |
+| **REV knobs** | Reverb wet/dry mix per channel (drag circular) |
+
+Channels: **1.HH** (Hi-Hat), **2.CP** (Clap), **3.SD** (Snare), **4.KK** (Kick)
 
 ### Sound & Filter Controls
 | Input | Action |
@@ -84,12 +136,56 @@ Use **H** or the **Hands BPM** button to disable hand BPM while moving pieces.
 | **2 open hands** | **BPM control** (20-220, only when both hands are open and held briefly) |
 | **H** | **Hand BPM toggle** (disable hand detection when placing pieces) |
 
-## 🔊 Synth Filter
+## 🔊 Audio Engine & Effects
 
+### Synth Filter
 Use the two sliders under BPM:
 
 - **Cutoff**: Lowpass cutoff frequency (lower = darker, higher = brighter)
 - **Resonance**: Boosts the cutoff area for a sharper, more "squelchy" sound
+
+### Channel Mixer (NEW - Press X)
+
+The mixer provides **per-channel control** for all 4 instruments:
+
+#### Volume Faders
+- **Vertical faders** for precise volume control (0-100%)
+- Real-time visual feedback with fill indicator
+- Separate control for HH, CP, SD, KK
+
+#### Mute Buttons
+- **Click [M]** to mute/unmute individual channels
+- Visual feedback: Red = muted, Gray = active
+- Instant notification on state change
+
+#### Delay Effect
+- **Delay knob** per channel (0-100% wet/dry mix)
+- 250ms delay time with 40% feedback
+- Circular knob with arc indicator showing amount
+- Creates echo/repeat effects
+
+#### Reverb Effect
+- **Reverb knob** per channel (0-100% wet/dry mix)
+- Convolution reverb with exponential decay impulse
+- Adds space and depth to individual sounds
+- Independent control per instrument
+
+#### FX Signal Chain
+```
+Input Sample
+    ↓
+Volume Control
+    ↓
+Mute Check
+    ↓
+Delay Processing (if > 0%)
+    ↓
+Reverb Processing (if > 0%)
+    ↓
+Output
+```
+
+All effects are processed in **real-time** during playback with zero latency.
 
 ## 🧰 Sound Kits
 
@@ -281,11 +377,14 @@ Tool shortcuts:
 - ✅ **Two open hands**: BPM control gated to avoid accidental changes
 
 ### On-Screen Indicators
+- **Performance Metrics (NEW)**: Capture FPS / Detection FPS (camera mode)
+- **Calibration Status (NEW)**: ⏳ Calibrating... / ✓ Calibrated (green check)
+- **Hand Detection (NEW)**: 🤚 Hands: X / 🎯 BPM ACTIVE (two open hands)
+- **Board Corners (NEW)**: Green polygon overlay showing detected board area
+- **Mixer Open**: Panel slides in from right side (200px width)
 - **Sensitivity (1-9)**: Shows current detection sensitivity (0.1-0.9)
 - **Dark Thresh (T/G)**: Shows threshold value (20-100)
 - **Pieces: X**: Count of detected black pieces
-- **BPM ACTIVE**: Two open hands detected (BPM can change)
-- **Calibrated ✓**: Green when calibrated, yellow when calibrating
 - **DEBUG: ON**: Yellow when debug mode active
 - **Manual board**: Shows when manual corners are enabled
 
@@ -328,31 +427,82 @@ Tool shortcuts:
 
 ## 🧠 Technical Details
 
-- **Board detection**: adaptive + Otsu thresholding, contour filtering, and perspective warp to 400x400.
-- **Manual corners**: 4-point override stored as normalized coordinates (TL,TR,BR,BL).
-- **Piece detection**: per-cell center sampling with dark-pixel ratio + baseline deviation.
-- **Temporal filter**: 5/7 frame consensus to reduce flicker.
-- **BPM control**: MediaPipe hands, only when **two open hands** are detected for a short moment.
-- **Audio engine**: pygame mixer + SciPy filter; kits from JSON library metadata + generators.
+### Architecture (Refactored in FASE 1)
+- **Modular vision package**: `src/vision/` with separate modules
+  - `hand_detector.py`: MediaPipe hand tracking (250 lines)
+  - `board_detector.py`: Adaptive board detection (600+ lines)
+  - `camera_controller.py`: Producer-consumer orchestration (345 lines)
+- **Producer-consumer pattern**: Camera capture (29.9 FPS) and detection (30.0 FPS) on separate threads
+- **Queue-based communication**: `queue.Queue(maxsize=2)` prevents frame backlog
+
+### Board Detection
+- **Adaptive sizing**: 200-800px warp based on board area (15-50% of frame)
+- **Stability scoring**: Smooths corner jitter, adapts filtering strength
+- **Otsu thresholding**: Auto-adjusts to lighting conditions
+- **Manual corners**: 4-point override stored as normalized coordinates (TL,TR,BR,BL)
+- **Calibration persistence**: `vision/camera_controller.py` saves/loads board baseline
+
+### Piece Detection
+- **Per-cell center sampling**: 3x3 grid average for robustness
+- **Dark-pixel ratio + baseline deviation**: Adaptive to lighting changes
+- **Temporal filter**: 5/7 frame consensus reduces flicker
+- **Real-time tunable**: Sensitivity (1-9) and dark threshold (T/G keys)
+
+### Hand Detection & BPM
+- **MediaPipe Hands**: 21-landmark tracking per hand
+- **Two-hand gating**: Only adjusts BPM when both hands open (prevents accidental changes)
+- **Distance mapping**: Hand distance (pixels) → BPM (20-220)
+- **Graceful fallback**: Continues without MediaPipe if not available (ARM64 compatible)
+
+### Audio Engine
+- **Pygame mixer**: 44.1kHz, 512 sample buffer, 32 channels
+- **Real-time FX processing**: Channel mixer with delay/reverb
+  - **Delay**: 250ms with 40% feedback using `collections.deque` buffers
+  - **Reverb**: Convolution with exponential decay impulse responses
+  - **Signal chain**: Volume → Mute → Delay → Reverb
+- **SciPy filter**: Butterworth lowpass with resonance boost
+- **JSON library system**: Sound kits + pattern presets
+
+### Logging System (FASE 0)
+- **Rotating file handler**: 10MB max, 5 backups in `logs/`
+- **Color-coded console**: Custom formatter with ANSI colors
+- **Multi-level**: DEBUG/INFO/WARNING/ERROR
+- **Module-specific**: Each module has its own logger
+
+### UI System
+- **Pygame**: 800x600 base window (1000x600 with mixer open)
+- **Dynamic resize**: Window expands when mixer opens (X key)
+- **Notification system**: Toast messages (3s auto-fade, bottom-left)
+- **Dual mode**: Camera view with mini-grid OR large virtual grid
+- **Performance overlays**: FPS, calibration, hand status
 
 ## 📁 Project Structure
 
 ```
 chessdrum/
+├── run.sh               # Interactive launcher (NEW)
 ├── config.json          # All settings
-├── requirements.txt     # Dependencies
+├── requirements.txt     # Dependencies (pinned versions)
 ├── docs/
 │   ├── images/          # README screenshots
 │   └── LIBRARIES.md     # How to create new libraries
 ├── libraries/           # Sound + pattern library JSON files
+├── logs/                # Rotating log files (NEW)
+│   └── chessdrum.log    # Main log (10MB max, 5 backups)
 ├── src/
 │   ├── main.py          # Entry point
+│   ├── logger.py        # Logging system (NEW)
 │   ├── config.py        # Config loader
 │   ├── grid.py          # 8x8 board model
 │   ├── sequencer.py     # Playback engine
-│   ├── audio_output.py  # Synth + filter
+│   ├── audio_output.py  # Synth + filter + mixer FX (NEW)
 │   ├── midi_output.py   # MIDI output
-│   └── ui.py            # Pygame interface
+│   ├── ui.py            # Pygame interface + mixer panel (NEW)
+│   └── vision/          # Vision module (NEW - FASE 1)
+│       ├── __init__.py
+│       ├── hand_detector.py      # MediaPipe hand tracking
+│       ├── board_detector.py     # Adaptive board detection
+│       └── camera_controller.py  # Producer-consumer pattern
 └── README.md
 ```
 

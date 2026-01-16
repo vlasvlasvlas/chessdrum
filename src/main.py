@@ -197,6 +197,10 @@ def main():
     ui = UI(grid, sequencer, audio_output=audio_ref, config=config, camera=camera_controller)
     logger.info("UI initialized")
     
+    # FASE 2: Show camera error in UI if failed
+    if use_camera and camera_controller is None:
+        ui.show_notification("⚠ Camera failed to start", (255, 150, 50))
+    
     # Run the app
     logger.info("Starting main loop...")
     try:

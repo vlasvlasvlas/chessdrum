@@ -570,6 +570,29 @@ class AudioOutput:
         self.sounds = {}
         self._generate_sounds()
         
+        # FASE 4: Channel Mixer & FX
+        self.channel_volumes = [1.0, 1.0, 1.0, 1.0]  # HH, CP, SD, KK
+        self.channel_mutes = [False, False, False, False]
+        self.channel_delay = [0.0, 0.0, 0.0, 0.0]    # 0.0-1.0 (wet/dry mix)
+        self.channel_reverb = [0.0, 0.0, 0.0, 0.0]   # 0.0-1.0 (wet/dry mix)
+        
+        # Delay buffers (500ms max per channel)
+        import collections
+        delay_buffer_size = int(SAMPLE_RATE * 0.5)
+        self.delay_buffers = [
+            collections.deque(maxlen=delay_buffer_size),
+            collections.deque(maxlen=delay_buffer_size),
+            collections.deque(maxlen=delay_buffer_size),
+            collections.deque(maxlen=delay_buffer_size)
+        ]
+        
+        # Delay parameters
+        self.delay_time_ms = 250  # Delay time in milliseconds
+        self.delay_feedback = 0.4  # Feedback amount (0.0-1.0)
+        
+        # Simple reverb impulse responses
+        self._generate_reverb_impulses()
+        
         print("✓ Audio samples generated")
         print(f"✓ Kit: {self.kit_name}")
         if self.filter_enabled:
@@ -711,14 +734,45 @@ class AudioOutput:
             self.sounds[name] = pygame.sndarray.make_sound(stereo)
     
     def play_sound(self, instrument: str, velocity: int = 127):
+        """Play sound with channel FX applied."""
         sound = self.sounds.get(instrument)
-        if sound:
-            kit_gain = self.kit_gain.get(instrument, 1.0)
-            inst_gain = self.instrument_gain.get(instrument, 1.0)
-            volume = (velocity / 127.0) * self.master_volume * kit_gain * inst_gain
+        if not sound:
+            return
+        
+        # Map instrument to channel index
+        channel_map = {"hihat": 0, "clap": 1, "snare": 2, "kick": 3}
+        channel_idx = channel_map.get(instrument, 0)
+        
+        # Check if muted
+        if self.channel_mutes[channel_idx]:
+            return
+        
+        # Calculate volume with channel volume
+        kit_gain = self.kit_gain.get(instrument, 1.0)
+        inst_gain = self.instrument_gain.get(instrument, 1.0)
+        channel_vol = self.channel_volumes[channel_idx]
+        volume = (velocity / 127.0) * self.master_volume * kit_gain * inst_gain * channel_vol
+        
+        # Check if FX are enabled for this channel
+        has_fx = (self.channel_delay[channel_idx] > 0.0 or 
+                  self.channel_reverb[channel_idx] > 0.0)
+        
+        if has_fx:
+            # Apply FX in real-time
+            raw_sample = self.raw_samples.get(instrument)
+            if raw_sample is not None:
+                processed = self._apply_channel_fx(raw_sample, channel_idx)
+                stereo = np.column_stack([processed, processed]).astype(np.int16)
+                fx_sound = pygame.sndarray.make_sound(stereo)
+                channel = fx_sound.play()
+            else:
+                channel = sound.play()
+        else:
+            # Play without FX
             channel = sound.play()
-            if channel is not None:
-                channel.set_volume(volume)
+        
+        if channel is not None:
+            channel.set_volume(volume)
 
     def trigger(self, instrument: str, cell_state: int):
         if cell_state == EMPTY:
@@ -760,6 +814,121 @@ class AudioOutput:
         self.filter_resonance = self.filter_resonance_default
         if self.filter_enabled:
             self._apply_filter_to_sounds()
+    
+    def _generate_reverb_impulses(self):
+        """
+        FASE 4: Generate simple reverb impulse responses per channel.
+        Using exponential decay with varying lengths for room-like reverb.
+        """
+        self.reverb_impulses = []
+        reverb_lengths = [0.2, 0.3, 0.25, 0.15]  # Seconds per channel
+        
+        for length_sec in reverb_lengths:
+            length = int(SAMPLE_RATE * length_sec)
+            t = np.arange(length) / SAMPLE_RATE
+            
+            # Exponential decay envelope
+            decay = np.exp(-5 * t / length_sec)
+            
+            # Add some random reflections for texture
+            noise = np.random.randn(length) * 0.3
+            impulse = decay * noise
+            
+            # Normalize
+            impulse = impulse / (np.max(np.abs(impulse)) + 1e-8)
+            self.reverb_impulses.append(impulse.astype(np.float32))
+    
+    def _apply_delay(self, sample: np.ndarray, channel_idx: int, mix: float) -> np.ndarray:
+        """
+        FASE 4: Apply delay effect to a sample.
+        Args:
+            sample: Input audio sample
+            channel_idx: Channel index (0-3)
+            mix: Wet/dry mix (0.0-1.0)
+        Returns:
+            Processed sample with delay
+        """
+        if mix <= 0.0:
+            return sample
+        
+        buffer = self.delay_buffers[channel_idx]
+        delay_samples = int(SAMPLE_RATE * self.delay_time_ms / 1000.0)
+        delay_samples = min(delay_samples, len(buffer))
+        
+        # Get delayed signal
+        if len(buffer) >= delay_samples and delay_samples > 0:
+            delayed = np.array(buffer)[-delay_samples:]
+            # Pad to match input length
+            if len(delayed) < len(sample):
+                delayed = np.pad(delayed, (len(sample) - len(delayed), 0), mode='constant')
+            else:
+                delayed = delayed[:len(sample)]
+        else:
+            delayed = np.zeros_like(sample)
+        
+        # Mix with feedback
+        output = sample * (1.0 - mix) + delayed * mix * self.delay_feedback
+        
+        # Update buffer
+        for s in output:
+            buffer.append(float(s))
+        
+        return output.astype(np.float32)
+    
+    def _apply_reverb(self, sample: np.ndarray, channel_idx: int, mix: float) -> np.ndarray:
+        """
+        FASE 4: Apply reverb effect to a sample.
+        Args:
+            sample: Input audio sample
+            channel_idx: Channel index (0-3)
+            mix: Wet/dry mix (0.0-1.0)
+        Returns:
+            Processed sample with reverb
+        """
+        if mix <= 0.0:
+            return sample
+        
+        impulse = self.reverb_impulses[channel_idx]
+        
+        # Convolve with impulse response
+        reverb = np.convolve(sample, impulse, mode='same')
+        
+        # Mix wet/dry
+        output = sample * (1.0 - mix) + reverb * mix * 0.5  # 0.5 = reverb gain
+        
+        return output.astype(np.float32)
+    
+    def _apply_channel_fx(self, sample: np.ndarray, channel_idx: int) -> np.ndarray:
+        """
+        FASE 4: Apply all FX to a channel sample.
+        Args:
+            sample: Input audio sample
+            channel_idx: Channel index (0=HH, 1=CP, 2=SD, 3=KK)
+        Returns:
+            Processed sample
+        """
+        # Convert to float32 for processing
+        sample_float = sample.astype(np.float32) / 32768.0
+        
+        # 1. Volume
+        sample_float = sample_float * self.channel_volumes[channel_idx]
+        
+        # 2. Mute
+        if self.channel_mutes[channel_idx]:
+            return np.zeros_like(sample)
+        
+        # 3. Delay
+        delay_mix = self.channel_delay[channel_idx]
+        if delay_mix > 0.0:
+            sample_float = self._apply_delay(sample_float, channel_idx, delay_mix)
+        
+        # 4. Reverb
+        reverb_mix = self.channel_reverb[channel_idx]
+        if reverb_mix > 0.0:
+            sample_float = self._apply_reverb(sample_float, channel_idx, reverb_mix)
+        
+        # Convert back to int16
+        return (np.clip(sample_float, -1.0, 1.0) * 32767).astype(np.int16)
 
     def _get_kit_gain(self, kit_id: str) -> Dict[str, float]:
         gain = {}
