@@ -464,7 +464,7 @@ Tool shortcuts:
 
 ## 🧠 Technical Details
 
-### Architecture (Refactored in FASE 1)
+### Architecture
 - **Modular vision package**: `src/vision/` with separate modules
   - `hand_detector.py`: MediaPipe hand tracking (250 lines)
   - `board_detector.py`: Adaptive board detection (600+ lines)
@@ -500,7 +500,7 @@ Tool shortcuts:
 - **SciPy filter**: Butterworth lowpass with resonance boost
 - **JSON library system**: Sound kits + pattern presets
 
-### Logging System (FASE 0)
+### Logging System
 - **Rotating file handler**: 10MB max, 5 backups in `logs/`
 - **Color-coded console**: Custom formatter with ANSI colors
 - **Multi-level**: DEBUG/INFO/WARNING/ERROR
@@ -535,7 +535,7 @@ chessdrum/
 │   ├── audio_output.py  # Synth + filter + mixer FX (NEW)
 │   ├── midi_output.py   # MIDI output
 │   ├── ui.py            # Pygame interface + mixer panel (NEW)
-│   └── vision/          # Vision module (NEW - FASE 1)
+│   └── vision/          # Vision module
 │       ├── __init__.py
 │       ├── hand_detector.py      # MediaPipe hand tracking
 │       ├── board_detector.py     # Adaptive board detection
