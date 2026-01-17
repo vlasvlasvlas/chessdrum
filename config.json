@@ -35,6 +35,15 @@
         "order": 4,
         "_comment": "Synth filter: Cutoff slider uses min_freq..max_freq, resonance sets default Q"
     },
+    "mixer": {
+        "channel_volumes": [1.0, 1.0, 1.0, 1.0],
+        "channel_mutes": [false, false, false, false],
+        "channel_delay": [0.0, 0.0, 0.0, 0.0],
+        "channel_reverb": [0.0, 0.0, 0.0, 0.0],
+        "delay_time_ms": 250,
+        "delay_feedback": 0.4,
+        "_comment": "4-channel mixer (HH, CP, SD, KK): volumes/mutes/delay/reverb per channel. Press X to toggle panel. Delay/reverb values are wet/dry mix (0.0-1.0)"
+    },
     "sequencer": {
         "default_bpm": 120,
         "min_bpm": 30,
