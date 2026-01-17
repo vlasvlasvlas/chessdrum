@@ -2,8 +2,18 @@
 
 A drum sequencer where an 8x8 chessboard controls a 4-instrument, 16-step drum pattern. Place pieces on the board to create beats!
 
+## 🎬 Demo
+
+https://github.com/user-attachments/assets/your-video-id-here
+
+*ChessDrum in action: Camera detection with real-time board tracking, mixer controls, and live performance (79 seconds).*
+
+**Alternative:** [Watch the video directly](docs/images/chessdrum-demo.mp4) if it doesn't play inline above.
+
+## 📸 Screenshots
+
 ![ChessDrum Screenshot](docs/images/chessdrum-screenshot.png)
-*Camera mode with board detection, overlay, and real-time controls.*
+*Camera mode with board detection overlay and real-time controls.*
 
 ## ✨ Highlights
 
