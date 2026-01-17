@@ -4,7 +4,7 @@ A drum sequencer where an 8x8 chessboard controls a 4-instrument, 16-step drum p
 
 ## 🎬 Demo
 
-https://github.com/vlasvlasvlas/chessdrum/assets/xxxxx/chessdrum-demo.mp4
+https://github.com/vlasvlasvlas/chessdrum/blob/main/docs/images/chessdrum-demo.mp4
 
 *ChessDrum in action: Camera detection with real-time board tracking, mixer controls, and live performance (79 seconds).*
 
