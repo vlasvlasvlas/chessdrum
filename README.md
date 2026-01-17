@@ -543,54 +543,6 @@ chessdrum/
 └── README.md
 ```
 
-## 🗺️ Development Timeline
-
-### ✅ FASE 0: Logging & Stability (Completed)
-- [x] Rotating log file system (10MB, 5 backups)
-- [x] Color-coded console output (DEBUG/INFO/WARNING/ERROR)
-- [x] MediaPipe graceful fallback for ARM64 compatibility
-- [x] Version pinning: opencv-python==4.8.1.78, mediapipe==0.10.9
-
-### ✅ FASE 1: Architecture & Performance (Completed)
-- [x] Split monolithic `camera.py` → `vision/` package (3 modules)
-- [x] Producer-consumer pattern (30 FPS stable)
-- [x] Dynamic board sizing (200-800px adaptive)
-- [x] Board stability scoring & adaptive filtering
-- [x] Calibration persistence (save/load)
-
-### ✅ FASE 2: UI/UX Improvements (Completed)
-- [x] Performance metrics overlay (capture/detection FPS)
-- [x] Calibration status indicator (calibrating/ready)
-- [x] Hand detection status (hands count, BPM active)
-- [x] Board corners visualization (green polygon)
-- [x] Notification system (toast messages, 3s fade)
-- [x] Virtual mode (large grid, no camera required)
-
-### ✅ FASE 4: Channel Mixer & FX (Completed)
-- [x] 4-channel mixer panel (lateral right, 200px)
-- [x] Per-channel volume faders (vertical, 0-100%)
-- [x] Per-channel mute buttons (visual feedback)
-- [x] Delay effect (250ms, 40% feedback, wet/dry per channel)
-- [x] Reverb effect (convolution, exponential decay)
-- [x] Real-time FX processing (zero latency)
-- [x] Dynamic window resize (800→1000px when mixer open)
-- [x] Interactive launcher script (`run.sh`)
-
-### Core Features (Original)
-- [x] Virtual sequencer with GUI
-- [x] Built-in synth sounds (6 kits)
-- [x] Synth filter with resonance
-- [x] JSON configuration system
-- [x] Camera detection (OpenCV + MediaPipe)
-- [x] Physical chessboard detection
-- [x] Black piece detection (optimized for contrast)
-- [x] Real-time adjustable thresholds
-- [x] Auto-calibration for lighting
-- [x] Temporal filtering (5/7 frames)
-- [x] Debug mode with warped view
-- [x] Manual recalibration (R key)
-- [x] Manual board corners (M + 4 clicks)
-- [x] Two open hands → BPM control
 
 ## 🔮 Future Ideas
 
